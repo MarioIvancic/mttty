@@ -1,17 +1,17 @@
 
 /*-----------------------------------------------------------------------------
 
-    This is a part of the Microsoft Source Code Samples. 
+    This is a part of the Microsoft Source Code Samples.
     Copyright (C) 1995 Microsoft Corporation.
-    All rights reserved. 
-    This source code is only intended as a supplement to 
+    All rights reserved.
+    This source code is only intended as a supplement to
     Microsoft Development Tools and/or WinHelp documentation.
-    See these sources for detailed information regarding the 
+    See these sources for detailed information regarding the
     Microsoft samples programs.
 
     MODULE: Error.c
 
-    PURPOSE: Implement error handling functions 
+    PURPOSE: Implement error handling functions
              called to report errors.
 
     FUNCTIONS:
@@ -60,7 +60,7 @@ DWORD ErrorExtender(DWORD dwError, char ** szBuffer)
                           (LPTSTR) szBuffer, 0, NULL);
 
     if (dwRes == 0) {
-        *szBuffer = LocalAlloc(LPTR, 1);
+        *szBuffer = (char*)LocalAlloc(LPTR, 1);
         return 1;
     }
 
@@ -83,9 +83,9 @@ HISTORY:   Date:      Author:     Comment:
            10/27/95   AllenD      Wrote it
 
 -----------------------------------------------------------------------------*/
-void ErrorReporter(char * szMessage)
+void ErrorReporter(const char * szMessage)
 {
-    char * szFormat = "Error %d: %s.\n\r%s\r\n";    // format for wsprintf
+    const char * szFormat = "Error %d: %s.\n\r%s\r\n";    // format for wsprintf
     char * szExtended;      // error string translated from error code
     char * szFinal;         // final string to report
     DWORD dwExtSize;
@@ -97,16 +97,16 @@ void ErrorReporter(char * szMessage)
         Get error string from system
     */
     dwExtSize = ErrorExtender(dwErr, &szExtended);
-    
+
     /*
         allocate buffer for error string from system, passed in string
         and extra stuff from the szFormat string
     */
-    szFinal = LocalAlloc(LPTR, strlen(szMessage) + dwExtSize + 30);
+    szFinal = (char*)LocalAlloc(LPTR, strlen(szMessage) + dwExtSize + 30);
 
     if (szFinal == NULL)	// if no final buffer, then can't format error
         MessageBox(ghwndMain, "Cannot properly report error.", "Fatal Error", MB_OK);
-    else {	
+    else {
         wsprintf(szFinal, szFormat, dwErr, szMessage, szExtended);
 
         OutputDebugString(szFinal);
@@ -139,8 +139,8 @@ HISTORY:   Date:      Author:     Comment:
            10/27/95   AllenD      Wrote it
 
 -----------------------------------------------------------------------------*/
-void ErrorHandler(char * szMessage)
-{	
+void ErrorHandler(const char * szMessage)
+{
     ErrorReporter(szMessage);
     ExitProcess(0);
 }
@@ -159,7 +159,7 @@ HISTORY:   Date:      Author:     Comment:
            10/27/95   AllenD      Wrote it
 
 -----------------------------------------------------------------------------*/
-void ErrorInComm(char * szMessage)
+void ErrorInComm(const char * szMessage)
 {
     ErrorReporter(szMessage);
     BreakDownCommPort();

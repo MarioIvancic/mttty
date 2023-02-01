@@ -1,10 +1,10 @@
 /*-----------------------------------------------------------------------------
-    This is a part of the Microsoft Source Code Samples. 
+    This is a part of the Microsoft Source Code Samples.
     Copyright (C) 1995 Microsoft Corporation.
-    All rights reserved. 
-    This source code is only intended as a supplement to 
+    All rights reserved.
+    This source code is only intended as a supplement to
     Microsoft Development Tools and/or WinHelp documentation.
-    See these sources for detailed information regarding the 
+    See these sources for detailed information regarding the
     Microsoft samples programs.
 
     MODULE: mttty.c
@@ -50,7 +50,7 @@ BOOL PaintTTY( HWND );
 /*-----------------------------------------------------------------------------
 
 FUNCTION: WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
- 
+
 PURPOSE: Start application and process all window messages
 
 PARAMETERS:
@@ -123,7 +123,7 @@ BOOL VersionCheck()
 
 FUNCTION: InitializeApp(HINSTANCE, int)
 
-PURPOSE: GlobalInitialize, Register window classes 
+PURPOSE: GlobalInitialize, Register window classes
          and create main window
 
 PARAMETERS:
@@ -140,7 +140,8 @@ HISTORY:   Date:      Author:     Comment:
 -----------------------------------------------------------------------------*/
 BOOL InitializeApp(HINSTANCE hInst, int nShowCmd)
 {
-    WNDCLASS wc = {0};
+    WNDCLASS wc;
+    memset(&wc, 0, sizeof(WNDCLASS));
 
     GlobalInitialize();     // get all global variables initialized to defaults
 
@@ -190,7 +191,7 @@ BOOL InitializeApp(HINSTANCE hInst, int nShowCmd)
         return FALSE;
     }
 
-    ShowWindow( ghwndMain, nShowCmd ) ;   
+    ShowWindow( ghwndMain, nShowCmd ) ;
     UpdateWindow( ghwndMain ) ;
 
     ghInst = hInst;
@@ -216,14 +217,14 @@ RETURN:
     If message is process, return value is 0
     If message is not processed, then it is passed to DefWindowProc
     and the return value from that function is returned
-    
+
 HISTORY:   Date:      Author:     Comment:
            10/27/95   AllenD      Wrote it
 
 -----------------------------------------------------------------------------*/
 int WINAPI MTTTYWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-    switch (message) 
+    switch (message)
     {
         case WM_CREATE:
             //
@@ -236,7 +237,7 @@ int WINAPI MTTTYWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
             ChangeConnection(hwnd, CONNECTED(TTYInfo));
             break;
 
-        case WM_DESTROY: 
+        case WM_DESTROY:
             //
             // since main windows is being destroyed, so same to other windows
             //
@@ -244,7 +245,7 @@ int WINAPI MTTTYWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
             DestroyWindow(ghWndToolbarDlg);
             DestroyWindow(ghWndStatusDlg);
             DestroyWindow(ghWndTTY);
-				
+
             GlobalCleanup();
             PostQuitMessage(0);
             break;
@@ -259,13 +260,13 @@ int WINAPI MTTTYWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
                 POINT        ptTemp;
 
                 lpTemp = (LPMINMAXINFO) lParam;
-      
+
                 ptTemp.x = (long) lpTemp->ptMinTrackSize.x;
                 ptTemp.y = (long) gcyMinimumWindowHeight;
 
                 lpTemp->ptMinTrackSize = ptTemp;
             }
-        
+
             break;
 
         case WM_SIZE:
@@ -300,11 +301,11 @@ int WINAPI MTTTYWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
                 wTop = SETTINGSFACTOR*gwBaseY;
                 MoveWindow(ghWndTTY, 0, wTop, wWidth, wHeight, TRUE);
             }
-         
+
             break;
 
-      case WM_COMMAND:       
-            CmdDispatch(LOWORD(wParam), hwnd, lParam);        
+      case WM_COMMAND:
+            CmdDispatch(LOWORD(wParam), hwnd, lParam);
             break;
 
       case WM_CHAR:
@@ -348,16 +349,21 @@ void CmdDispatch(int iMenuChoice, HWND hwnd, LPARAM lParam)
 {
     static char szFileName[MAX_PATH] = {0};
 
-    switch (iMenuChoice) 
+    switch (iMenuChoice)
     {
         case ID_HELP_ABOUTMTTTY:
             CmdAbout(hwnd);
             break;
 
+        case ID_HELP_HELP:
+            CmdHelp(hwnd);
+            break;
+
         case ID_TRANSFER_SENDFILETEXT:
             {
-                char * szFilter = "Text Files\0*.TXT\0";
-                OPENFILENAME ofn = {0};
+                const char * szFilter = "Text Files\0*.TXT\0";
+                OPENFILENAME ofn;
+                memset(&ofn, 0, sizeof(OPENFILENAME));
 
                 ofn.lStructSize = sizeof(OPENFILENAME);
                 ofn.hwndOwner = hwnd;
@@ -369,7 +375,7 @@ void CmdDispatch(int iMenuChoice, HWND hwnd, LPARAM lParam)
 
                 if (!GetOpenFileName(&ofn))
                     break;
-                
+
                 if (TRUE)
                     TransferFileTextStart(szFileName);
             }
@@ -377,8 +383,9 @@ void CmdDispatch(int iMenuChoice, HWND hwnd, LPARAM lParam)
 
         case ID_TRANSFER_RECEIVEFILETEXT:
             {
-                char * szFilter = "Text Files\0*.TXT\0";
-                OPENFILENAME ofn = {0};
+                const char * szFilter = "Text Files\0*.TXT\0";
+                OPENFILENAME ofn;
+                memset(&ofn, 0, sizeof(OPENFILENAME));
 
                 ofn.lStructSize = sizeof(OPENFILENAME);
                 ofn.hwndOwner = hwnd;
@@ -409,15 +416,16 @@ void CmdDispatch(int iMenuChoice, HWND hwnd, LPARAM lParam)
                     gfAbortTransfer = TRUE;
             }
             else
-                // transfer abort was sent by transfer thread   
+                // transfer abort was sent by transfer thread
                 TransferFileTextEnd();
             break;
 
         case ID_TRANSFER_SENDREPEATEDLY:
             {
                 DWORD dwFreq;
-                char * szFilter = "Text Files\0*.TXT\0";
-                OPENFILENAME ofn = {0};
+                const char * szFilter = "Text Files\0*.TXT\0";
+                OPENFILENAME ofn;
+                memset(&ofn, 0, sizeof(OPENFILENAME));
 
                 ofn.lStructSize = sizeof(OPENFILENAME);
                 ofn.hwndOwner = hwnd;
@@ -431,7 +439,7 @@ void CmdDispatch(int iMenuChoice, HWND hwnd, LPARAM lParam)
                     break;
 
                 dwFreq = GetAFrequency();
-                
+
                 TransferRepeatCreate(szFileName, dwFreq);
             }
             break;
@@ -488,7 +496,7 @@ HISTORY:   Date:      Author:     Comment:
 /*-----------------------------------------------------------------------------*/
 void OpenTTYChildWindow(HWND hWnd)
 {
-    ghWndTTY = CreateWindow( "MTTTYChildClass", "TTY Window", 
+    ghWndTTY = CreateWindow( "MTTTYChildClass", "TTY Window",
                              WS_CHILD | WS_VISIBLE | WS_VSCROLL,
                              0,0,
                              0,0,
@@ -679,7 +687,7 @@ BOOL NEAR PaintTTY( HWND hWnd )
    int          nCount, nHorzPos, nVertPos ;
 
    hDC = BeginPaint( hWnd, &ps ) ;
-   hOldFont = SelectObject( hDC, HTTYFONT( TTYInfo ) ) ;
+   hOldFont = (HFONT) SelectObject( hDC, HTTYFONT( TTYInfo ) ) ;
    SetTextColor( hDC, FGCOLOR( TTYInfo ) ) ;
    SetBkColor( hDC, GetSysColor( COLOR_WINDOW ) ) ;
    rect = ps.rcPaint ;
@@ -738,7 +746,7 @@ BOOL NEAR MoveTTYCursor( HWND hWnd )
                    XOFFSET( TTYInfo ),
                    (ROW( TTYInfo ) * YCHAR( TTYInfo )) -
                    YOFFSET( TTYInfo ) ) ;
-   
+
    return ( TRUE ) ;
 
 } // end of MoveTTYCursor()
@@ -897,7 +905,7 @@ int WINAPI TTYChildProc(HWND hWnd, UINT uMessage, WPARAM wParam, LPARAM lParam)
         case WM_CHAR:
             {
                 //
-                // keyboard activity in TTY Window 
+                // keyboard activity in TTY Window
                 //
                 if (CONNECTED(TTYInfo)) {
 

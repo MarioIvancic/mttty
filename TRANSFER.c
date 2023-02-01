@@ -1,10 +1,10 @@
 /*-----------------------------------------------------------------------------
-    This is a part of the Microsoft Source Code Samples. 
+    This is a part of the Microsoft Source Code Samples.
     Copyright (C) 1995 Microsoft Corporation.
-    All rights reserved. 
-    This source code is only intended as a supplement to 
+    All rights reserved.
+    This source code is only intended as a supplement to
     Microsoft Development Tools and/or WinHelp documentation.
-    See these sources for detailed information regarding the 
+    See these sources for detailed information regarding the
     Microsoft samples programs.
 
     MODULE: Transfer.c
@@ -28,7 +28,7 @@
                                  during a transfer
         SendFile               - Send a file
         CaptureFile            - Sets the receive state for file capture
-       
+
 -----------------------------------------------------------------------------*/
 
 #include <windows.h>
@@ -116,7 +116,7 @@ void TransferRepeatCreate(LPCTSTR lpszFileName, DWORD dwFrequency)
     }
 
     // Allocate a buffer
-    lpBuf = HeapAlloc(ghWriterHeap, 0, dwFileSize);
+    lpBuf = (char*)HeapAlloc(ghWriterHeap, 0, dwFileSize);
     if (lpBuf == NULL) {
         ErrorReporter("HeapAlloc (data block from writer heap).\r\nFile is too large");
         TransferRepeatDestroy();
@@ -131,7 +131,7 @@ void TransferRepeatCreate(LPCTSTR lpszFileName, DWORD dwFrequency)
 
     if (dwRead != dwFileSize)
         ErrorReporter("Didn't read entire file\n");
-        
+
     mmTimer = timeSetEvent((UINT) dwFrequency, 10, TransferRepeatDo, dwRead, TIME_PERIODIC);
     if (mmTimer == (MMRESULT) NULL) {
         ErrorReporter("Could not create mm timer");
@@ -180,7 +180,7 @@ void TransferRepeatDestroy()
     // free the buffer
     if (!HeapFree(ghWriterHeap, 0, lpBuf))
         ErrorReporter("HeapFree (data block from writer heap)");
-    
+
     REPEATING(TTYInfo) = FALSE;
     OutputDebugString("Repeated transfer destroyed.\r\n");
 
@@ -195,7 +195,7 @@ void TransferRepeatDestroy()
     EnableMenuItem(hMenu, ID_TRANSFER_RECEIVEFILETEXT, MenuFlags);
 
     ShowWindow(GetDlgItem(ghWndStatusDlg, IDC_ABORTBTN), SW_HIDE);
-    
+
     return;
 }
 
@@ -212,15 +212,15 @@ HISTORY:   Date:      Author:     Comment:
             1/29/96   AllenD      Wrote it
 
 -----------------------------------------------------------------------------*/
-void CALLBACK TransferRepeatDo( UINT uTimerId, 
-                                        UINT uRes, 
-                                        DWORD dwFileSize, 
-                                        DWORD dwRes1, 
+void CALLBACK TransferRepeatDo( UINT uTimerId,
+                                        UINT uRes,
+                                        DWORD dwFileSize,
+                                        DWORD dwRes1,
                                         DWORD dwRes2)
 {
     if (!WriterAddNewNodeTimeout(WRITE_BLOCK, dwFileSize, 0, lpBuf, 0, 0, 10))
         PostMessage(ghwndMain, WM_COMMAND, ID_TRANSFER_ABORTSENDING, MAKELPARAM(IDC_ABORTBTN, 0) );
-    
+
     return;
 }
 
@@ -261,7 +261,7 @@ void TransferFileTextStart(LPCTSTR lpstrFileName)
     EnableMenuItem(hMenu, ID_TRANSFER_SENDREPEATEDLY, MenuFlags);
     EnableMenuItem(hMenu, ID_TRANSFER_ABORTSENDING, MF_ENABLED);
     EnableMenuItem(hMenu, ID_TRANSFER_RECEIVEFILETEXT, MenuFlags);
-    
+
     //
     // enable abort button and progress bar
     //
@@ -275,8 +275,8 @@ void TransferFileTextStart(LPCTSTR lpstrFileName)
     if (hTransferAbortEvent == NULL)
         ErrorReporter("CreateEvent(Transfer Abort Event)");
 
-    hTransferThread = CreateThread(NULL, 0, 
-                                TransferThreadProc, 
+    hTransferThread = CreateThread(NULL, 0,
+                                TransferThreadProc,
                                 (LPVOID) hFile, 0, &dwThreadId);
 
     if (hTransferThread == NULL) {
@@ -332,7 +332,7 @@ void TransferFileTextEnd()
     EnableMenuItem(hMenu, ID_TRANSFER_SENDREPEATEDLY, MenuFlags);
     EnableMenuItem(hMenu, ID_TRANSFER_RECEIVEFILETEXT, MenuFlags);
     EnableMenuItem(hMenu, ID_TRANSFER_ABORTSENDING, MF_DISABLED | MF_GRAYED);
-    
+
     //
     // disable abort button and progress bar
     //
@@ -353,7 +353,7 @@ FUNCTION: ReceiveFileText(LPCTSTR)
 PURPOSE: Prepares program for a text file transfer (receive)
 
 PARAMETERS:
-    lpstrFileName - name of file selected for receiving 
+    lpstrFileName - name of file selected for receiving
 
 COMMENTS: Modifies menus and control, then restores them
 
@@ -381,14 +381,14 @@ void ReceiveFileText(LPCTSTR lpstrFileName)
     MenuFlags = MF_DISABLED | MF_GRAYED;
     EnableMenuItem(hMenu, ID_FILE_CONNECT, MenuFlags);
     EnableMenuItem(hMenu, ID_FILE_DISCONNECT, MenuFlags);
-    
+
     //
     // disable transfer menu
     //
     EnableMenuItem(hMenu, ID_TRANSFER_SENDFILETEXT, MenuFlags);
     EnableMenuItem(hMenu, ID_TRANSFER_RECEIVEFILETEXT, MenuFlags);
     EnableMenuItem(hMenu, ID_TRANSFER_SENDREPEATEDLY, MenuFlags);
-    
+
     //
     // enable abort button and progress bar
     //
@@ -408,7 +408,7 @@ void ReceiveFileText(LPCTSTR lpstrFileName)
     hMenu = GetMenu(ghwndMain);
     MenuFlags = MF_ENABLED;
     ChangeConnection(ghwndMain, CONNECTED(TTYInfo));
-    
+
     //
     // enable transfer menu
     //
@@ -421,7 +421,7 @@ void ReceiveFileText(LPCTSTR lpstrFileName)
     //
     ShowWindow(GetDlgItem(ghWndStatusDlg, IDC_ABORTBTN), SW_HIDE);
     ShowWindow(GetDlgItem(ghWndStatusDlg, IDC_TRANSFERPROGRESS), SW_HIDE);
-    
+
     gfAbortTransfer = FALSE;
 
     CloseHandle(ghFileCapture);
@@ -573,17 +573,17 @@ FUNCTION: CheckForMessages
 PURPOSE: Check for a message and dispatch it.
 
 RETURN:
-    If the WM_CLOSE message or the WM_SYSCOMMAND (SC_CLOSE) is 
-    retrieved, WM_CLOSE is posted, and WM_CLOSEQUIT is 
+    If the WM_CLOSE message or the WM_SYSCOMMAND (SC_CLOSE) is
+    retrieved, WM_CLOSE is posted, and WM_CLOSEQUIT is
     returned by the function.  This allows the caller
     to detect this as an abort condition and exit properly.  When
     the caller exits, the main message loop in the WinMain function
-    should be entered again and the WM_CLOSE message will be 
+    should be entered again and the WM_CLOSE message will be
     handled properly.
-           
-    If there is a message other than those above, it is dispatched 
+
+    If there is a message other than those above, it is dispatched
     and TRUE is returned indicating that a message was dispatched.
-            
+
     If no message is found, FALSE is returned.
 
 HISTORY:   Date:      Author:     Comment:
@@ -600,7 +600,7 @@ UINT CheckForMessages()
             return WM_CLOSE;
         }
 
-        if (msg.message == WM_SYSCOMMAND && msg.wParam == SC_CLOSE) {            
+        if (msg.message == WM_SYSCOMMAND && msg.wParam == SC_CLOSE) {
             PostMessage(ghwndMain, WM_CLOSE, 0, 0);
             return WM_CLOSE;
         }
@@ -612,7 +612,7 @@ UINT CheckForMessages()
 
         return TRUE ;
     }
-    
+
     return FALSE ;
 }
 
@@ -668,7 +668,7 @@ PURPOSE: Worker thread does all the file transfer work
 PARAMETERS:
     lpV - actually a HANDLE for the file
 
-COMMENTS: Function allows the hTransferAbortEvent to 
+COMMENTS: Function allows the hTransferAbortEvent to
           signal an abort condition.
           If the thread finishes OK, then the thread
           calls the TransferFileTextEnd function itself.
@@ -729,8 +729,8 @@ DWORD WINAPI TransferThreadProc(LPVOID lpV)
         PWRITEREQUEST pWrite;
 
         // transfer file, loop until all blocks of file have been read
-        lpDataBuf = HeapAlloc(hDataHeap, 0, dwPacketSize);
-        pWrite = HeapAlloc(ghWriterHeap, 0, sizeof(WRITEREQUEST));
+        lpDataBuf = (char*)HeapAlloc(hDataHeap, 0, dwPacketSize);
+        pWrite = (PWRITEREQUEST)HeapAlloc(ghWriterHeap, 0, sizeof(WRITEREQUEST));
         if ((lpDataBuf != NULL) && (pWrite != NULL)) {
 
             DWORD dwRead;
@@ -792,13 +792,13 @@ DWORD WINAPI TransferThreadProc(LPVOID lpV)
     }
     else
         WriterAddNewNodeTimeout(WRITE_FILEEND, dwFileSize, 0, NULL, NULL, NULL, 500);
-        
+
     {
         // wait til writer thread finishes with all blocks
         HANDLE hEvents[2];
         DWORD dwRes;
         BOOL  fTransferComplete;
-        
+
         hEvents[0] = ghTransferCompleteEvent;
         hEvents[1] = hTransferAbortEvent;
 
@@ -808,12 +808,12 @@ DWORD WINAPI TransferThreadProc(LPVOID lpV)
 
             dwRes = WaitForMultipleObjects(2, hEvents, FALSE, INFINITE);
             switch(dwRes) {
-            case WAIT_OBJECT_0:      
-                fTransferComplete = TRUE;   
+            case WAIT_OBJECT_0:
+                fTransferComplete = TRUE;
                 OutputDebugString("Transfer complete signal rec'd\n");
                 break;
-            case WAIT_OBJECT_0 + 1:  
-                fAborting = TRUE;           
+            case WAIT_OBJECT_0 + 1:
+                fAborting = TRUE;
                 OutputDebugString("Transfer abort signal rec'd\n");
                 OutputDebugString("Xfer: Sending Abort Packet to writer\n");
                 if (!WriterAddFirstNodeTimeout(WRITE_ABORT, dwFileSize, 0, NULL, NULL, NULL, 500))

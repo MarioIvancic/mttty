@@ -1,11 +1,11 @@
 
 /*-----------------------------------------------------------------------------
-    This is a part of the Microsoft Source Code Samples. 
+    This is a part of the Microsoft Source Code Samples.
     Copyright (C) 1995 Microsoft Corporation.
-    All rights reserved. 
-    This source code is only intended as a supplement to 
+    All rights reserved.
+    This source code is only intended as a supplement to
     Microsoft Development Tools and/or WinHelp documentation.
-    See these sources for detailed information regarding the 
+    See these sources for detailed information regarding the
     Microsoft samples programs.
 
     MODULE: TTYINFO.h
@@ -21,13 +21,15 @@
 //
 // hard coded maximum number of ports
 //
-#define MAXPORTS        4
+#define MAXPORTS        99
 
 //
 // terminal size
 //
-#define MAXROWS         50
-#define MAXCOLS         80
+//#define MAXROWS         50
+//#define MAXCOLS         80
+#define MAXROWS         100
+#define MAXCOLS         160
 
 //
 // cursor states
@@ -60,11 +62,11 @@ struct TTYInfoStruct
     BOOL    fConnected, fTransferring, fRepeating,
             fLocalEcho, fNewLine,
             fDisplayErrors, fAutowrap,
-            fCTSOutFlow, fDSROutFlow, fDSRInFlow, 
+            fCTSOutFlow, fDSROutFlow, fDSRInFlow,
             fXonXoffOutFlow, fXonXoffInFlow,
             fTXafterXoffSent,
             fNoReading, fNoWriting, fNoEvents, fNoStatus,
-            fDisplayTimeouts;
+            fDisplayTimeouts, fNonPrintHex, fAllHex;
     BYTE    bPort, bByteSize, bParity, bStopBits ;
     DWORD   dwBaudRate ;
     WORD    wCursorState ;
@@ -135,6 +137,9 @@ struct TTYInfoStruct
 #define NOEVENTS( x )       (x.fNoEvents)
 #define NOSTATUS( x )       (x.fNoStatus)
 #define SHOWTIMEOUTS( x )   (x.fDisplayTimeouts)
+
+#define NONPRINTHEX( x )   (x.fNonPrintHex)
+#define DISPLAYHEX( x )   (x.fAllHex)
 
 //---------------------------------------------------------------------------
 //  End of File: ttyinfo.h

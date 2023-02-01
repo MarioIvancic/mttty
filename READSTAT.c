@@ -1,21 +1,21 @@
 /*-----------------------------------------------------------------------------
-    This is a part of the Microsoft Source Code Samples. 
+    This is a part of the Microsoft Source Code Samples.
     Copyright (C) 1995 Microsoft Corporation.
-    All rights reserved. 
-    This source code is only intended as a supplement to 
+    All rights reserved.
+    This source code is only intended as a supplement to
     Microsoft Development Tools and/or WinHelp documentation.
-    See these sources for detailed information regarding the 
+    See these sources for detailed information regarding the
     Microsoft samples programs.
 
     MODULE: ReadStat.c
 
     PURPOSE: Thread procedure responsible for reading comm port,
-             reporting status events, report status messages, 
+             reporting status events, report status messages,
              and periodically updating status controls
 
     FUNCTIONS:
         ReaderAndStatusProc - Thread procedure does the work here
- 
+
 -----------------------------------------------------------------------------*/
 
 #include <windows.h>
@@ -28,7 +28,7 @@
 
 FUNCTION: ReaderAndStatusProc(LPVOID)
 
-PURPOSE: Thread function controls comm port reading, comm port status 
+PURPOSE: Thread function controls comm port reading, comm port status
          checking, and status messages.
 
 PARMATERS:
@@ -46,8 +46,10 @@ HISTORY:   Date:      Author:     Comment:
 -----------------------------------------------------------------------------*/
 DWORD WINAPI ReaderAndStatusProc(LPVOID lpV)
 {
-    OVERLAPPED osReader = {0};  // overlapped structure for read operations
-    OVERLAPPED osStatus = {0};  // overlapped structure for status operations
+    OVERLAPPED osReader;  // overlapped structure for read operations
+    OVERLAPPED osStatus;  // overlapped structure for status operations
+    memset(&osReader, 0, sizeof(OVERLAPPED));
+    memset(&osStatus, 0, sizeof(OVERLAPPED));
     HANDLE     hArray[NUM_READSTAT_HANDLES];
     DWORD      dwStoredFlags = 0xFFFFFFFF;      // local copy of event flags
     DWORD      dwCommEvent;     // result from WaitCommEvent
@@ -60,7 +62,7 @@ DWORD WINAPI ReaderAndStatusProc(LPVOID lpV)
     char   	   lpBuf[AMOUNT_TO_READ];
     HWND  	   hTTY;
 
-    hTTY = (HANDLE) lpV;
+    hTTY = (HWND) lpV;
 
     //
     // create two overlapped structures, one for read events
@@ -100,7 +102,7 @@ DWORD WINAPI ReaderAndStatusProc(LPVOID lpV)
         //
         if (NOREADING( TTYInfo ))
             fWaitingOnRead = TRUE;
-        
+
         //
         // if no read is outstanding, then issue another one
         //
@@ -187,7 +189,7 @@ DWORD WINAPI ReaderAndStatusProc(LPVOID lpV)
                 //
                 // status completed
                 //
-                case WAIT_OBJECT_0 + 1: 
+                case WAIT_OBJECT_0 + 1:
                     if (!GetOverlappedResult(COMDEV(TTYInfo), &osStatus, &dwOvRes, FALSE)) {
                         if (GetLastError() == ERROR_OPERATION_ABORTED)
                             UpdateStatus("WaitCommEvent aborted\r\n");
@@ -230,7 +232,7 @@ DWORD WINAPI ReaderAndStatusProc(LPVOID lpV)
                                                     //   a comm status check
                     }
 
-                    break;                       
+                    break;
 
                 default:
                     ErrorReporter("WaitForMultipleObjects(Reader & Status handles)");

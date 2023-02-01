@@ -1,10 +1,10 @@
 /*-----------------------------------------------------------------------------
-    This is a part of the Microsoft Source Code Samples. 
+    This is a part of the Microsoft Source Code Samples.
     Copyright (C) 1995 Microsoft Corporation.
-    All rights reserved. 
-    This source code is only intended as a supplement to 
+    All rights reserved.
+    This source code is only intended as a supplement to
     Microsoft Development Tools and/or WinHelp documentation.
-    See these sources for detailed information regarding the 
+    See these sources for detailed information regarding the
     Microsoft samples programs.
 
     MODULE: Settings.c
@@ -12,7 +12,7 @@
     PURPOSE: Controls all dialog controls in the Settings Dialog as well
 	     as the comm events dialog, flow control dialog, and timeouts
 	     dialog.  The module also controls the tty settings based on
-	     these dialogs and also control comm port settings using 
+	     these dialogs and also control comm port settings using
 	     SetCommState and SetCommTimeouts.
 
     FUNCTIONS:
@@ -50,10 +50,10 @@
 /*
     Prototypes for functions called only within this file
 */
-void FillComboBox( HWND, char ** szString, DWORD *, WORD, DWORD );
+void FillComboBox( HWND, const char **, DWORD *, WORD, DWORD );
 BOOL SettingsDlgInit( HWND );
-DWORD GetdwTTYItem( HWND, int, char **, DWORD *, int );
-BYTE GetbTTYItem( HWND, int, char **, DWORD *, int);
+DWORD GetdwTTYItem( HWND, int, const char **, DWORD *, int );
+BYTE GetbTTYItem( HWND, int, const char **, DWORD *, int);
 BOOL CALLBACK CommEventsProc( HWND, UINT, WPARAM, LPARAM );
 BOOL CALLBACK ToolbarProc( HWND, UINT, WPARAM, LPARAM );
 void InitHexControl(HWND, WORD, WORD, char);
@@ -68,6 +68,10 @@ BOOL CALLBACK TimeoutsProc( HWND, UINT, WPARAM, LPARAM );
 void InitTimeoutsDlg( HWND, COMMTIMEOUTS );
 void SaveTimeoutsDlg( HWND );
 BOOL CALLBACK GetADWORDProc( HWND, UINT, WPARAM, LPARAM );
+// Mario Ivanèiæ, 2018
+BOOL CALLBACK SetMacrosProc(HWND hdlg, UINT uMessage, WPARAM wparam, LPARAM lparam);
+// convert COMnn to \\.\COMnn
+void adjust_com_port_name(char* name);
 
 /*
     GLOBALS for this file
@@ -76,10 +80,10 @@ BOOL CALLBACK GetADWORDProc( HWND, UINT, WPARAM, LPARAM );
 
 DCB dcbTemp;
 
-char * szBaud[] = {
-	    "110", "300", "600", "1200", "2400", 
+const char * szBaud[] = {
+	    "110", "300", "600", "1200", "2400",
 	    "4800", "9600", "14400", "19200",
-	    "38400", "56000", "57600", "115200", 
+	    "38400", "56000", "57600", "115200",
 	    "128000", "256000"
 	};
 
@@ -89,27 +93,184 @@ DWORD   BaudTable[] =  {
 	    CBR_56000, CBR_57600, CBR_115200, CBR_128000, CBR_256000
 	} ;
 
-char * szParity[] =   {   "None", "Even", "Odd", "Mark", "Space" };
+const char * szParity[] =   {   "None", "Even", "Odd", "Mark", "Space" };
 
 DWORD   ParityTable[] = {  NOPARITY, EVENPARITY, ODDPARITY, MARKPARITY, SPACEPARITY  } ;
 
-char * szStopBits[] =  {  "1", "1.5", "2"  };
+const char * szStopBits[] =  {  "1", "1.5", "2"  };
 
 DWORD   StopBitsTable[] =  { ONESTOPBIT, ONE5STOPBITS, TWOSTOPBITS } ;
 
-char * szDTRControlStrings[] = { "Enable", "Disable", "Handshake" };
+const char * szDTRControlStrings[] = { "Enable", "Disable", "Handshake" };
 
 DWORD   DTRControlTable[] = { DTR_CONTROL_ENABLE, DTR_CONTROL_DISABLE, DTR_CONTROL_HANDSHAKE };
 
-char * szRTSControlStrings[] = { "Enable", "Disable", "Handshake", "Toggle" };
+const char * szRTSControlStrings[] = { "Enable", "Disable", "Handshake", "Toggle" };
 
-DWORD   RTSControlTable[] = {   RTS_CONTROL_ENABLE, RTS_CONTROL_DISABLE, 
+DWORD   RTSControlTable[] = {   RTS_CONTROL_ENABLE, RTS_CONTROL_DISABLE,
 				RTS_CONTROL_HANDSHAKE, RTS_CONTROL_TOGGLE };
 
 DWORD   EventFlagsTable[] = {
 	    EV_BREAK, EV_CTS, EV_DSR, EV_ERR, EV_RING,
 	    EV_RLSD, EV_RXCHAR, EV_RXFLAG, EV_TXEMPTY
 	};
+
+// Mario Ivanèiæ, 2018
+#define MACRO_BUFF_SIZE 1024
+typedef struct
+{
+    unsigned char buff[MACRO_BUFF_SIZE];     // za slanje
+    char text[MACRO_BUFF_SIZE];     // za prikaz
+    int len;    // buffer text len
+    int tlen;   // text len
+    int hex;
+} macro_buffer_t;
+
+macro_buffer_t macro_buffer[10];
+
+
+int get_hex_value(int c)
+{
+    if('0' <= c && c <= '9') return c - '0';
+    if('a' <= c && c <= 'f') return c - 'a' + 10;
+    if('A' <= c && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
+void set_macro_buffer(unsigned i, HWND hdlg)
+{
+    if(i >= 10) return;
+    int hex = (IsDlgButtonChecked(hdlg, IDC_MACRO1HEXRB + 2 * i) == BST_CHECKED) ? 1 : 0;
+    char *text = macro_buffer[i].text;
+    unsigned char *buff = (unsigned char*)macro_buffer[i].buff;
+    macro_buffer[i].tlen = 0;
+    int tlen = GetDlgItemText(hdlg, IDC_MACRO1 + i, text, sizeof(macro_buffer[i].text) - 1);
+    if(!tlen && GetLastError()) return; // error
+    text[tlen] = 0;
+    macro_buffer[i].tlen = tlen;
+
+    if(hex)
+    {
+        macro_buffer[i].hex = 1;
+        int j, c, hi = 1, len = 0;
+        unsigned h = 0;
+        for(j = 0; j < tlen; j++)
+        {
+            c = get_hex_value(text[j]);
+            if(c == -1) continue;
+            if(hi)
+            {
+                h = (unsigned)c;
+                h <<= 4;
+                hi = 0;
+            }
+            else
+            {
+                h += c;
+                buff[len++] = h;
+                hi = 1;
+            }
+        }
+        if(!hi) buff[len++] = h;
+        macro_buffer[i].len = len;
+    }
+    else
+    {
+        macro_buffer[i].hex = 0;
+        int j, esc = 0, len = 0;
+        for(j = 0; j < tlen; j++)
+        {
+            int c = text[j];
+            if(esc)
+            {
+                esc = 0;
+                switch(c)
+                {
+                    case 'n': c = '\n'; break;
+                    case 'r': c = '\r'; break;
+                    case 't': c = '\t'; break;
+                    case '0': c = '\0'; break;
+                    case 'x':
+                        j++;
+                        c = 0;
+                        if(j == tlen) break;
+                        c = get_hex_value(text[j]);
+                        if(c == -1) c = 0;
+                        j++;
+                        if(j == tlen) break;
+                        if(get_hex_value(text[j]) == -1) c *= 16;
+                        else c = 16 * c + get_hex_value(text[j]);
+                    break;
+                }
+                macro_buffer[i].buff[len++] = c;
+            }
+            else if(c == '\\') esc = 1;
+            else macro_buffer[i].buff[len++] = c;
+        }
+        macro_buffer[i].len = len;
+    }
+}
+
+
+void init_macro_text(HWND hdlg, unsigned i)
+{
+    if(i >= 10) return;
+    char *text = macro_buffer[i].text;
+    int tlen = macro_buffer[i].tlen;
+    int hex = macro_buffer[i].hex;
+
+    text[tlen] = 0;
+
+    SetDlgItemText(hdlg, IDC_MACRO1 + i, text);
+    if(hex) CheckRadioButton(hdlg, IDC_MACRO1ASCIIRB + 2 * i, IDC_MACRO1ASCIIRB + 2 * i + 1, IDC_MACRO1ASCIIRB + 2 * i + 1);
+    else    CheckRadioButton(hdlg, IDC_MACRO1ASCIIRB + 2 * i, IDC_MACRO1ASCIIRB + 2 * i + 1, IDC_MACRO1ASCIIRB + 2 * i);
+}
+
+
+
+void save_macros_to_file(const char* filename)
+{
+    FILE * fp = fopen(filename, "wb");
+    if(!fp) return;
+    int i;
+    for(i = 0; i < 10; i++)
+    {
+        if(macro_buffer[i].hex) fwrite("1 ", 2, 1, fp);
+        else fwrite("0 ", 2, 1, fp);
+        fwrite(macro_buffer[i].text, macro_buffer[i].tlen, 1, fp);
+        fwrite("\n", 1, 1, fp);
+    }
+    fclose(fp);
+}
+
+
+void load_macros_from_file(const char* filename)
+{
+    FILE * fp = fopen(filename, "rb");
+    if(!fp) return;
+    int i;
+    char text[MACRO_BUFF_SIZE + 4];
+    for(i = 0; i < 10; i++)
+    {
+        text[0] = 0;
+        fgets(text, MACRO_BUFF_SIZE + 4, fp);
+        if(text[0] == '0') macro_buffer[i].hex = 0;
+        else if(text[0] == '1') macro_buffer[i].hex = 1;
+        else continue;
+
+        if(text[1] != ' ') continue;
+        int tlen = strlen(text + 2);
+        if(text[tlen + 2 - 1] == '\n')
+        {
+            text[tlen + 2 - 1] = 0;
+            tlen--;
+        }
+        macro_buffer[i].tlen = tlen;
+        strcpy(macro_buffer[i].text, text + 2);
+    }
+    fclose(fp);
+}
+
 
 /*-----------------------------------------------------------------------------
 
@@ -154,89 +315,97 @@ void ChangeConnection( HWND hwnd, BOOL fConnected )
     HMENU hMenu;
     int i;
 
-    if (fConnected) {
-	/*
-	    The port is connected.  Need to :
-	    Disable connect menu and enable disconnect menu.
-	    Enable file transfer menu
-	    Disable comm port selection box
-	    Disable no writing, no reading, no events, no status check boxes
-	    Enable status check boxes
-	    Set focus to the child tty window
-	*/
-	hMenu = GetMenu( hwnd ) ;
-	EnableMenuItem( hMenu, ID_FILE_CONNECT,
-		       MF_GRAYED | MF_DISABLED | MF_BYCOMMAND ) ;
-	EnableMenuItem( hMenu, ID_FILE_DISCONNECT,
-		       MF_ENABLED | MF_BYCOMMAND ) ;
+    if (fConnected)
+    {
+        /*
+            The port is connected.  Need to :
+            Disable connect menu and enable disconnect menu.
+            Enable file transfer menu
+            Disable comm port selection box
+            Disable no writing, no reading, no events, no status check boxes
+            Enable status check boxes
+            Set focus to the child tty window
+        */
+        hMenu = GetMenu( hwnd ) ;
+        EnableMenuItem( hMenu, ID_FILE_CONNECT,
+                   MF_GRAYED | MF_DISABLED | MF_BYCOMMAND ) ;
+        EnableMenuItem( hMenu, ID_FILE_DISCONNECT,
+                   MF_ENABLED | MF_BYCOMMAND ) ;
 
-	EnableMenuItem( hMenu, ID_TRANSFER_SENDFILETEXT,
-		       MF_ENABLED | MF_BYCOMMAND ) ;
-	EnableMenuItem( hMenu, ID_TRANSFER_RECEIVEFILETEXT,
-		       MF_ENABLED | MF_BYCOMMAND ) ;
-	EnableMenuItem( hMenu, ID_TRANSFER_SENDREPEATEDLY,
-		       MF_ENABLED | MF_BYCOMMAND ) ;
-	EnableMenuItem( hMenu, ID_TRANSFER_ABORTSENDING,
-		       MF_DISABLED | MF_GRAYED | MF_BYCOMMAND );
-	EnableMenuItem( hMenu, ID_TRANSFER_ABORTREPEATEDSENDING,
-		       MF_DISABLED | MF_GRAYED | MF_BYCOMMAND );
+        EnableMenuItem( hMenu, ID_TRANSFER_SENDFILETEXT,
+                   MF_ENABLED | MF_BYCOMMAND ) ;
+        EnableMenuItem( hMenu, ID_TRANSFER_RECEIVEFILETEXT,
+                   MF_ENABLED | MF_BYCOMMAND ) ;
+        EnableMenuItem( hMenu, ID_TRANSFER_SENDREPEATEDLY,
+                   MF_ENABLED | MF_BYCOMMAND ) ;
+        EnableMenuItem( hMenu, ID_TRANSFER_ABORTSENDING,
+                   MF_DISABLED | MF_GRAYED | MF_BYCOMMAND );
+        EnableMenuItem( hMenu, ID_TRANSFER_ABORTREPEATEDSENDING,
+                   MF_DISABLED | MF_GRAYED | MF_BYCOMMAND );
 
-	EnableWindow( GetDlgItem(ghWndToolbarDlg, IDC_PORTCOMBO), FALSE);
-	EnableWindow( GetDlgItem(ghWndToolbarDlg, IDC_NOWRITINGCHK), FALSE);
-	EnableWindow( GetDlgItem(ghWndToolbarDlg, IDC_NOREADINGCHK), FALSE);
-	EnableWindow( GetDlgItem(ghWndToolbarDlg, IDC_NOEVENTSCHK),  FALSE);
-	EnableWindow( GetDlgItem(ghWndToolbarDlg, IDC_NOSTATUSCHK),  FALSE);
+        EnableWindow( GetDlgItem(ghWndToolbarDlg, IDC_PORTCOMBO), FALSE);
+        EnableWindow( GetDlgItem(ghWndToolbarDlg, IDC_NOWRITINGCHK), FALSE);
+        EnableWindow( GetDlgItem(ghWndToolbarDlg, IDC_NOREADINGCHK), FALSE);
+        EnableWindow( GetDlgItem(ghWndToolbarDlg, IDC_NOEVENTSCHK),  FALSE);
+        EnableWindow( GetDlgItem(ghWndToolbarDlg, IDC_NOSTATUSCHK),  FALSE);
 
-	for (i = IDC_STATCTS; i <= IDC_STATRLSD; i++)
-	    EnableWindow( GetDlgItem(ghWndStatusDlg, i), TRUE );
+        EnableWindow( GetDlgItem(ghWndToolbarDlg, IDC_OPENBTN), FALSE);
+        EnableWindow( GetDlgItem(ghWndToolbarDlg, IDC_CLOSEBTN), TRUE);
 
-	for (i = IDC_CTSHOLDCHK; i <= IDC_RXCHAREDIT; i++)
-	    EnableWindow( GetDlgItem(ghWndStatusDlg, i), TRUE);
-    
-	SetFocus(ghWndTTY);
+        for (i = IDC_STATCTS; i <= IDC_STATRLSD; i++)
+            EnableWindow( GetDlgItem(ghWndStatusDlg, i), TRUE );
+
+        for (i = IDC_CTSHOLDCHK; i <= IDC_RXCHAREDIT; i++)
+            EnableWindow( GetDlgItem(ghWndStatusDlg, i), TRUE);
+
+        SetFocus(ghWndTTY);
     }
-    else {
-	//
-	// Not connected, do opposite of above.
-	//
-	hMenu = GetMenu( hwnd ) ;
-	EnableMenuItem( hMenu, ID_FILE_CONNECT,
-		       MF_ENABLED | MF_BYCOMMAND ) ;
-	EnableMenuItem( hMenu, ID_FILE_DISCONNECT,
-		       MF_GRAYED | MF_DISABLED | MF_BYCOMMAND ) ;
+    else
+    {
+        //
+        // Not connected, do opposite of above.
+        //
+        hMenu = GetMenu( hwnd ) ;
+        EnableMenuItem( hMenu, ID_FILE_CONNECT,
+                   MF_ENABLED | MF_BYCOMMAND ) ;
+        EnableMenuItem( hMenu, ID_FILE_DISCONNECT,
+                   MF_GRAYED | MF_DISABLED | MF_BYCOMMAND ) ;
 
-	EnableMenuItem( hMenu, ID_TRANSFER_SENDFILETEXT,
-		       MF_DISABLED | MF_GRAYED | MF_BYCOMMAND ) ;
-	EnableMenuItem( hMenu, ID_TRANSFER_RECEIVEFILETEXT,
-		       MF_DISABLED | MF_GRAYED | MF_BYCOMMAND ) ;
-	EnableMenuItem( hMenu, ID_TRANSFER_SENDREPEATEDLY,
-		       MF_DISABLED | MF_GRAYED | MF_BYCOMMAND ) ;
-	EnableMenuItem( hMenu, ID_TRANSFER_ABORTSENDING,
-		       MF_DISABLED | MF_GRAYED | MF_BYCOMMAND ) ;
-	EnableMenuItem( hMenu, ID_TRANSFER_ABORTREPEATEDSENDING,
-		       MF_DISABLED | MF_GRAYED | MF_BYCOMMAND );
+        EnableMenuItem( hMenu, ID_TRANSFER_SENDFILETEXT,
+                   MF_DISABLED | MF_GRAYED | MF_BYCOMMAND ) ;
+        EnableMenuItem( hMenu, ID_TRANSFER_RECEIVEFILETEXT,
+                   MF_DISABLED | MF_GRAYED | MF_BYCOMMAND ) ;
+        EnableMenuItem( hMenu, ID_TRANSFER_SENDREPEATEDLY,
+                   MF_DISABLED | MF_GRAYED | MF_BYCOMMAND ) ;
+        EnableMenuItem( hMenu, ID_TRANSFER_ABORTSENDING,
+                   MF_DISABLED | MF_GRAYED | MF_BYCOMMAND ) ;
+        EnableMenuItem( hMenu, ID_TRANSFER_ABORTREPEATEDSENDING,
+                   MF_DISABLED | MF_GRAYED | MF_BYCOMMAND );
 
-	EnableWindow( GetDlgItem(ghWndToolbarDlg, IDC_PORTCOMBO), TRUE);
-	EnableWindow( GetDlgItem(ghWndToolbarDlg, IDC_NOWRITINGCHK), TRUE);
-	EnableWindow( GetDlgItem(ghWndToolbarDlg, IDC_NOREADINGCHK), TRUE);
-	EnableWindow( GetDlgItem(ghWndToolbarDlg, IDC_NOEVENTSCHK),  TRUE);
-	EnableWindow( GetDlgItem(ghWndToolbarDlg, IDC_NOSTATUSCHK),  TRUE);
+        EnableWindow( GetDlgItem(ghWndToolbarDlg, IDC_PORTCOMBO), TRUE);
+        EnableWindow( GetDlgItem(ghWndToolbarDlg, IDC_NOWRITINGCHK), TRUE);
+        EnableWindow( GetDlgItem(ghWndToolbarDlg, IDC_NOREADINGCHK), TRUE);
+        EnableWindow( GetDlgItem(ghWndToolbarDlg, IDC_NOEVENTSCHK),  TRUE);
+        EnableWindow( GetDlgItem(ghWndToolbarDlg, IDC_NOSTATUSCHK),  TRUE);
 
-	for (i = IDC_STATCTS; i <= IDC_STATRLSD; i++) {
-	    CheckDlgButton(ghWndStatusDlg, i, 0);
-	    EnableWindow( GetDlgItem(ghWndStatusDlg, i), FALSE );
-	}
+        EnableWindow( GetDlgItem(ghWndToolbarDlg, IDC_OPENBTN), TRUE);
+        EnableWindow( GetDlgItem(ghWndToolbarDlg, IDC_CLOSEBTN), FALSE);
 
-	for (i = IDC_CTSHOLDCHK; i <= IDC_RXCHAREDIT; i++) {
-	    if (i != IDC_TXCHAREDIT && i != IDC_RXCHAREDIT)
-		CheckDlgButton(ghWndStatusDlg, i, 0);
-	    else
-		SetDlgItemInt(ghWndStatusDlg, i, 0, FALSE);
+        for (i = IDC_STATCTS; i <= IDC_STATRLSD; i++) {
+            CheckDlgButton(ghWndStatusDlg, i, 0);
+            EnableWindow( GetDlgItem(ghWndStatusDlg, i), FALSE );
+        }
 
-	    EnableWindow( GetDlgItem(ghWndStatusDlg, i), FALSE);
-	}
+        for (i = IDC_CTSHOLDCHK; i <= IDC_RXCHAREDIT; i++) {
+            if (i != IDC_TXCHAREDIT && i != IDC_RXCHAREDIT)
+            CheckDlgButton(ghWndStatusDlg, i, 0);
+            else
+            SetDlgItemInt(ghWndStatusDlg, i, 0, FALSE);
 
-	SetFocus(ghwndMain);
+            EnableWindow( GetDlgItem(ghWndStatusDlg, i), FALSE);
+        }
+
+        SetFocus(ghwndMain);
     }
 
     return;
@@ -249,7 +418,7 @@ FUNCTION: UpdateTTYInfo(void)
 
 PURPOSE: Modifies TTY data based on the settings and calls UpdateConnection
 
-COMMENTS: Modifies the data based on the dialog. If connected, 
+COMMENTS: Modifies the data based on the dialog. If connected,
 	  calls UpdateConnection.
 
 HISTORY:   Date:      Author:     Comment:
@@ -263,23 +432,24 @@ void UpdateTTYInfo()
     // update globals from dialog settings
     //
     GetDlgItemText(ghWndToolbarDlg, IDC_PORTCOMBO, gszPort, sizeof(gszPort));
+    adjust_com_port_name(gszPort);
 
-    BAUDRATE(TTYInfo) = GetdwTTYItem( ghWndToolbarDlg, 
-					IDC_BAUDCOMBO, 
-					szBaud, 
-					BaudTable, 
+    BAUDRATE(TTYInfo) = GetdwTTYItem( ghWndToolbarDlg,
+					IDC_BAUDCOMBO,
+					szBaud,
+					BaudTable,
 					sizeof(BaudTable)/sizeof(BaudTable[0]));
 
-    PARITY(TTYInfo) = GetbTTYItem( ghWndToolbarDlg, 
-				     IDC_PARITYCOMBO, 
-				     szParity, 
-				     ParityTable, 
+    PARITY(TTYInfo) = GetbTTYItem( ghWndToolbarDlg,
+				     IDC_PARITYCOMBO,
+				     szParity,
+				     ParityTable,
 				     sizeof(ParityTable)/sizeof(ParityTable[0]));
 
-    STOPBITS(TTYInfo) = GetbTTYItem( ghWndToolbarDlg, 
-				       IDC_STOPBITSCOMBO, 
-				       szStopBits, 
-				       StopBitsTable, 
+    STOPBITS(TTYInfo) = GetbTTYItem( ghWndToolbarDlg,
+				       IDC_STOPBITSCOMBO,
+				       szStopBits,
+				       StopBitsTable,
 				       sizeof(StopBitsTable)/sizeof(StopBitsTable[0]));
 
     LOCALECHO(TTYInfo) = IsDlgButtonChecked(ghWndToolbarDlg, IDC_LOCALECHOCHK);
@@ -292,6 +462,9 @@ void UpdateTTYInfo()
     NOWRITING(TTYInfo) = IsDlgButtonChecked(ghWndToolbarDlg, IDC_NOWRITINGCHK);
     NOEVENTS(TTYInfo)  = IsDlgButtonChecked(ghWndToolbarDlg, IDC_NOEVENTSCHK);
     NOSTATUS(TTYInfo)  = IsDlgButtonChecked(ghWndToolbarDlg, IDC_NOSTATUSCHK);
+
+    NONPRINTHEX(TTYInfo)  = IsDlgButtonChecked(ghWndToolbarDlg, IDC_NONPRINTHEXCHK);
+    DISPLAYHEX(TTYInfo)  = IsDlgButtonChecked(ghWndToolbarDlg, IDC_ALLASHEXCHK);
 
     if (CONNECTED(TTYInfo))      // if connected, then update port state
 	UpdateConnection();
@@ -314,8 +487,9 @@ HISTORY:   Date:      Author:     Comment:
 -----------------------------------------------------------------------------*/
 BOOL UpdateConnection()
 {
-    DCB dcb = {0};
-    
+    DCB dcb;
+    memset(&dcb, 0, sizeof(DCB));
+
     dcb.DCBlength = sizeof(dcb);
 
     //
@@ -336,7 +510,7 @@ BOOL UpdateConnection()
     // update event flags
     //
     if (EVENTFLAGS(TTYInfo) & EV_RXFLAG)
-	dcb.EvtChar = FLAGCHAR(TTYInfo);      
+	dcb.EvtChar = FLAGCHAR(TTYInfo);
     else
 	dcb.EvtChar = '\0';
 
@@ -398,7 +572,7 @@ HISTORY:   Date:      Author:     Comment:
 	   10/27/95   AllenD      Modified for MTTTY
 
 -----------------------------------------------------------------------------*/
-void FillComboBox( HWND hCtrlWnd, char ** szString,
+void FillComboBox( HWND hCtrlWnd, const char ** szString,
 			DWORD * npTable, WORD wTableLen, DWORD dwCurrentSetting )
 {
     WORD wCount, wPosition ;
@@ -413,7 +587,7 @@ void FillComboBox( HWND hCtrlWnd, char ** szString,
 	SendMessage( hCtrlWnd, CB_SETITEMDATA, (WPARAM) wPosition,
 		     (LPARAM) *(npTable + wCount) ) ;
 
-	//     
+	//
 	// if this is our current setting, select it
 	//
 	if (*(npTable + wCount) == dwCurrentSetting)
@@ -452,6 +626,54 @@ void SetComboBox( HWND hCtrlWnd, WORD wTableLen, DWORD dwNewSetting )
     return ;
 }
 
+
+
+int is_com_port(int i)
+{
+    char name[16];
+    HANDLE hCom = NULL;
+
+    if (i < 10) sprintf(name, "COM%d", i);
+    else        sprintf(name, "\\\\.\\COM%d", i);
+
+    hCom = CreateFile(name,
+            GENERIC_READ|GENERIC_WRITE, // desired access should be read&write
+            0,                          // COM port must be opened in non-sharing mode
+            NULL,                       // don't care about the security
+            OPEN_EXISTING,              // IMPORTANT: must use OPEN_EXISTING for a COM port
+            0,                          // usually overlapped but non-overlapped for existance test
+            NULL);                      // always NULL for a general purpose COM port
+
+    if (INVALID_HANDLE_VALUE == hCom)
+    {
+        if (ERROR_ACCESS_DENIED == GetLastError())
+        {   // then it exists and currently opened
+            return 1;
+        }
+    }
+    else
+    {   // COM port exist
+        CloseHandle(hCom);
+        return 1;
+    }
+    return 0;
+}
+
+
+// convert COMnn to \\.\COMnn
+void adjust_com_port_name(char* name)
+{
+    if(!name) return;
+    if(name[0] != 'C' || name[1] != 'O' || name[2] != 'M') return;
+    if(name[3] < '1' || name[3] > '9') return;
+    if(name[4] == 0) return;    // COM1 .. COM9
+    if(name[4] < '1' || name[4] > '9') return;
+    int i = 10 * (name[3] - '0') + name[4] - '0';
+    sprintf(name, "\\\\.\\COM%d", i);
+}
+
+
+
 /*-----------------------------------------------------------------------------
 
 FUNCTION: SettingsDlgInit(HWND)
@@ -481,16 +703,17 @@ BOOL SettingsDlgInit( HWND hDlg )
     //
     // fill port combo box and make initial selection
     //
-    for (wCount = 0; wCount < wMaxCOM; wCount++) {
-	wsprintf( szBuffer, "%s%d", (LPSTR) szTemp, wCount + 1 ) ;
-	SendDlgItemMessage( hDlg, IDC_PORTCOMBO, CB_ADDSTRING, 0,
-			    (LPARAM) (LPSTR) szBuffer ) ;
+    for (wCount = 1; wCount <= wMaxCOM; wCount++)
+    {
+        if(!is_com_port(wCount)) continue;
+        wsprintf( szBuffer, "%s%d", (LPSTR) szTemp, wCount) ;
+        SendDlgItemMessage( hDlg, IDC_PORTCOMBO, CB_ADDSTRING, 0, (LPARAM) (LPSTR) szBuffer ) ;
     }
 
-    SendDlgItemMessage( hDlg, IDC_PORTCOMBO, CB_SETCURSEL,
-		       (WPARAM) (PORT( TTYInfo ) - 1), 0L ) ;
-   
+    SendDlgItemMessage( hDlg, IDC_PORTCOMBO, CB_SETCURSEL, (WPARAM) (PORT( TTYInfo ) - 1), 0L ) ;
+
     GetDlgItemText(hDlg, IDC_PORTCOMBO, gszPort, sizeof(gszPort));
+    adjust_com_port_name(gszPort);
 
     //
     // fill baud combo box and make initial selection
@@ -545,6 +768,12 @@ BOOL SettingsDlgInit( HWND hDlg )
     CheckDlgButton( hDlg, IDC_NOSTATUSCHK,  NOSTATUS( TTYInfo ) );
     CheckDlgButton( hDlg, IDC_NOEVENTSCHK,  NOEVENTS( TTYInfo ) );
 
+    CheckDlgButton( hDlg, IDC_NONPRINTHEXCHK,  NONPRINTHEX( TTYInfo ) );
+    CheckDlgButton( hDlg, IDC_ALLASHEXCHK,  DISPLAYHEX( TTYInfo ) );
+
+    EnableWindow( GetDlgItem(hDlg, IDC_OPENBTN), TRUE);
+    EnableWindow( GetDlgItem(hDlg, IDC_CLOSEBTN), FALSE);
+
     return ( TRUE ) ;
 
 } // end of SettingsDlgInit()
@@ -563,7 +792,7 @@ PARAMETERS:
     pTable    - table of data associated with strings
     iNumItems - size of table
 
-RETURN:  
+RETURN:
     DWORD item corresponding to control selection
     0 if item not found correctly
 
@@ -571,7 +800,7 @@ HISTORY:   Date:      Author:     Comment:
 	   10/27/95   AllenD      Wrote it
 
 -----------------------------------------------------------------------------*/
-DWORD GetdwTTYItem(HWND hDlg, int idControl, char ** szString, DWORD * pTable, int iNumItems)
+DWORD GetdwTTYItem(HWND hDlg, int idControl, const char ** szString, DWORD * pTable, int iNumItems)
 {
     int i;
     char szItem[MAXLEN_TEMPSTR];
@@ -580,14 +809,14 @@ DWORD GetdwTTYItem(HWND hDlg, int idControl, char ** szString, DWORD * pTable, i
     // Get current selection (a string)
     //
     GetDlgItemText(hDlg, idControl, szItem, sizeof(szItem));
-    
+
     /*
 	Compare current selection with table to find index of item.
 	If index is found, then return the DWORD item from table.
-    */ 
-    for (i = 0; i < iNumItems; i++) {
-	if (strcmp(szString[i], szItem) == 0)
-	    return pTable[i];
+    */
+    for (i = 0; i < iNumItems; i++)
+    {
+        if (strcmp(szString[i], szItem) == 0) return pTable[i];
     }
 
     return 0;
@@ -607,14 +836,14 @@ PARAMETERS:
     iNumItems - size of table
 
 RETURN:
-    BYTE item from corresponding to control selection 
+    BYTE item from corresponding to control selection
     0 if item data not found
 
 HISTORY:   Date:      Author:     Comment:
 	   10/27/95   AllenD      Wrote it
 
 -----------------------------------------------------------------------------*/
-BYTE GetbTTYItem(HWND hDlg, int idControl, char ** szString, DWORD * pTable, int iNumItems)
+BYTE GetbTTYItem(HWND hDlg, int idControl, const char ** szString, DWORD * pTable, int iNumItems)
 {
     int i;
     char szItem[MAXLEN_TEMPSTR];
@@ -623,16 +852,16 @@ BYTE GetbTTYItem(HWND hDlg, int idControl, char ** szString, DWORD * pTable, int
     // Get current selection (a string)
     //
     GetDlgItemText(hDlg, idControl, szItem, sizeof(szItem));
-    
+
     /*
 	Compare current selection with table to find index of item.
 	If index is found, then return the BYTE item from table.
-    */ 
-    for (i = 0; i < iNumItems; i++) {
-	if (strcmp(szString[i], szItem) == 0)
-	    return (BYTE) pTable[i];
+    */
+    for (i = 0; i < iNumItems; i++)
+    {
+        if (strcmp(szString[i], szItem) == 0) return (BYTE) pTable[i];
     }
-    
+
     return 0;
 }
 
@@ -668,13 +897,14 @@ BOOL CALLBACK ToolbarProc(HWND hWndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	    SettingsDlgInit(hWndDlg);
 	    break;
 
-	case WM_COMMAND: 
+	case WM_COMMAND:
 	    {
 		switch(LOWORD(wParam))
 		{
 		    case IDC_FONTBTN:       // font button pressed
 			{
-			    CHOOSEFONT cf = {0};
+			    CHOOSEFONT cf;
+			    memset(&cf, 0, sizeof(CHOOSEFONT));
 			    LOGFONT lf;
 
 			    lf = LFTTYFONT(TTYInfo);
@@ -695,17 +925,17 @@ BOOL CALLBACK ToolbarProc(HWND hWndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			    // character now
 			    //
 			    SizeTTY(ghWndTTY, (WORD)XSIZE(TTYInfo), (WORD)YSIZE(TTYInfo));
-			    
+
 			    //
 			    // repaint screen contents
 			    //
 			    InvalidateRect(ghWndTTY, NULL, TRUE);
-			    
+
 			    //
 			    // kill old cursor
 			    //
 			    KillTTYFocus(ghWndTTY);
-			    
+
 			    //
 			    // create new cursor
 			    //
@@ -729,6 +959,52 @@ BOOL CALLBACK ToolbarProc(HWND hWndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			fRet = FALSE;
 			break;
 
+			// Mario Ivanèiæ, 2018
+			case IDC_SETMACROSBTN:
+			DialogBox(ghInst, MAKEINTRESOURCE(IDD_SETMACROS), ghwndMain, SetMacrosProc);
+			fRet = FALSE;
+			break;
+
+			case IDC_MACRO1BTN:
+			case IDC_MACRO2BTN:
+			case IDC_MACRO3BTN:
+			case IDC_MACRO4BTN:
+			case IDC_MACRO5BTN:
+			case IDC_MACRO6BTN:
+			case IDC_MACRO7BTN:
+			case IDC_MACRO8BTN:
+			case IDC_MACRO9BTN:
+			case IDC_MACRO10BTN:
+			if (CONNECTED(TTYInfo))
+            {
+                int i = LOWORD(wParam) - IDC_MACRO1BTN;
+                unsigned char* p = macro_buffer[i].buff;
+                int len = macro_buffer[i].len;
+                if(len)
+                {
+                    WriterAddNewNode(WRITE_BLOCK, len, 0, p, NULL, NULL);
+                    if (LOCALECHO(TTYInfo)) OutputABufferToWindow(ghWndTTY, p, len);
+                }
+            }
+			fRet = FALSE;
+			break;
+
+			case IDC_OPENBTN:
+                if (SetupCommPort() != NULL) ChangeConnection(ghwndMain, CONNECTED(TTYInfo));
+                fRet = FALSE;
+			break;
+
+			case IDC_CLOSEBTN:
+                if (BreakDownCommPort()) ChangeConnection(ghwndMain, CONNECTED(TTYInfo));
+                fRet = FALSE;
+			break;
+
+			case IDC_CLEARBTN:
+                ClearTTYContents();
+                InvalidateRect(ghWndTTY, NULL, TRUE);
+                fRet = FALSE;
+			break;
+
 		    default:                    // some other control has been modified
 			if (CONNECTED(TTYInfo))
 			    UpdateTTYInfo();
@@ -739,10 +1015,162 @@ BOOL CALLBACK ToolbarProc(HWND hWndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 	default:
 	    break;
-    }    
+    }
 
     return fRet;
 }
+
+
+
+/*-----------------------------------------------------------------------------
+
+FUNCTION: SetMacrosProc(HWND, UINT, WPARAM, LPARAM)
+
+PURPOSE: Dialog Procedure for setting macros
+
+PARAMETERS:
+    hdlg     - Dialog window handle
+    uMessage - window message
+    wparam   - message parameter (depends on message)
+    lparam   - message parameter (depends on message)
+
+RETURN:
+    TRUE if message is handled
+    FALSE if message is not handled
+    Exception is WM_INITDIALOG: returns FALSE since focus is not set
+
+HISTORY:   Date:      Author:           Comment:
+	   2018-03-16   Mario Ivanèiæ       Wrote it
+
+-----------------------------------------------------------------------------*/
+BOOL CALLBACK SetMacrosProc(HWND hdlg, UINT uMessage, WPARAM wparam, LPARAM lparam)
+{
+    char* appdata = getenv("APPDATA");
+    char config_file[MAX_PATH];
+    config_file[0] = 0;
+    if(appdata) strcpy(config_file, appdata);
+    strcat(config_file, "\\MTTTY.cfg");
+
+    switch(uMessage)
+    {
+        case WM_INITDIALOG:     // init controls
+            load_macros_from_file(config_file);
+            init_macro_text(hdlg, 0);
+            init_macro_text(hdlg, 1);
+            init_macro_text(hdlg, 2);
+            init_macro_text(hdlg, 3);
+            init_macro_text(hdlg, 4);
+            init_macro_text(hdlg, 5);
+            init_macro_text(hdlg, 6);
+            init_macro_text(hdlg, 7);
+            init_macro_text(hdlg, 8);
+            init_macro_text(hdlg, 9);
+            set_macro_buffer(0, hdlg);
+            set_macro_buffer(1, hdlg);
+            set_macro_buffer(2, hdlg);
+            set_macro_buffer(3, hdlg);
+            set_macro_buffer(4, hdlg);
+            set_macro_buffer(5, hdlg);
+            set_macro_buffer(6, hdlg);
+            set_macro_buffer(7, hdlg);
+            set_macro_buffer(8, hdlg);
+            set_macro_buffer(9, hdlg);
+        break;
+
+        case WM_COMMAND:
+            switch(LOWORD(wparam))
+            {
+                case IDOK:
+                    //SaveTimeoutsDlg(hdlg);
+                    set_macro_buffer(0, hdlg);
+                    set_macro_buffer(1, hdlg);
+                    set_macro_buffer(2, hdlg);
+                    set_macro_buffer(3, hdlg);
+                    set_macro_buffer(4, hdlg);
+                    set_macro_buffer(5, hdlg);
+                    set_macro_buffer(6, hdlg);
+                    set_macro_buffer(7, hdlg);
+                    set_macro_buffer(8, hdlg);
+                    set_macro_buffer(9, hdlg);
+
+                    save_macros_to_file(config_file);
+
+                    //
+                    // FALL THROUGH
+                    //
+
+                case IDCANCEL:
+                    EndDialog(hdlg, LOWORD(wparam));
+                    return TRUE;
+
+                case IDC_MACRO1ASCIIRB:
+                    CheckRadioButton(hdlg, IDC_MACRO1ASCIIRB, IDC_MACRO1HEXRB, IDC_MACRO1ASCIIRB);
+                    return FALSE;
+                case IDC_MACRO2ASCIIRB:
+                    CheckRadioButton(hdlg, IDC_MACRO2ASCIIRB, IDC_MACRO2HEXRB, IDC_MACRO2ASCIIRB);
+                    return FALSE;
+                case IDC_MACRO3ASCIIRB:
+                    CheckRadioButton(hdlg, IDC_MACRO3ASCIIRB, IDC_MACRO3HEXRB, IDC_MACRO3ASCIIRB);
+                    return FALSE;
+                case IDC_MACRO4ASCIIRB:
+                    CheckRadioButton(hdlg, IDC_MACRO4ASCIIRB, IDC_MACRO4HEXRB, IDC_MACRO4ASCIIRB);
+                    return FALSE;
+                case IDC_MACRO5ASCIIRB:
+                    CheckRadioButton(hdlg, IDC_MACRO5ASCIIRB, IDC_MACRO5HEXRB, IDC_MACRO5ASCIIRB);
+                    return FALSE;
+                case IDC_MACRO6ASCIIRB:
+                    CheckRadioButton(hdlg, IDC_MACRO6ASCIIRB, IDC_MACRO6HEXRB, IDC_MACRO6ASCIIRB);
+                    return FALSE;
+                case IDC_MACRO7ASCIIRB:
+                    CheckRadioButton(hdlg, IDC_MACRO7ASCIIRB, IDC_MACRO7HEXRB, IDC_MACRO7ASCIIRB);
+                    return FALSE;
+                case IDC_MACRO8ASCIIRB:
+                    CheckRadioButton(hdlg, IDC_MACRO8ASCIIRB, IDC_MACRO8HEXRB, IDC_MACRO7ASCIIRB);
+                    return FALSE;
+                case IDC_MACRO9ASCIIRB:
+                    CheckRadioButton(hdlg, IDC_MACRO9ASCIIRB, IDC_MACRO9HEXRB, IDC_MACRO9ASCIIRB);
+                    return FALSE;
+                case IDC_MACRO10ASCIIRB:
+                    CheckRadioButton(hdlg, IDC_MACRO10ASCIIRB, IDC_MACRO10HEXRB, IDC_MACRO10ASCIIRB);
+                    return FALSE;
+
+                case IDC_MACRO1HEXRB:
+                    CheckRadioButton(hdlg, IDC_MACRO1ASCIIRB, IDC_MACRO1HEXRB, IDC_MACRO1HEXRB);
+                    return FALSE;
+                case IDC_MACRO2HEXRB:
+                    CheckRadioButton(hdlg, IDC_MACRO2ASCIIRB, IDC_MACRO2HEXRB, IDC_MACRO2HEXRB);
+                    return FALSE;
+                case IDC_MACRO3HEXRB:
+                    CheckRadioButton(hdlg, IDC_MACRO3ASCIIRB, IDC_MACRO3HEXRB, IDC_MACRO3HEXRB);
+                    return FALSE;
+                case IDC_MACRO4HEXRB:
+                    CheckRadioButton(hdlg, IDC_MACRO4ASCIIRB, IDC_MACRO4HEXRB, IDC_MACRO4HEXRB);
+                    return FALSE;
+                case IDC_MACRO5HEXRB:
+                    CheckRadioButton(hdlg, IDC_MACRO5ASCIIRB, IDC_MACRO5HEXRB, IDC_MACRO5HEXRB);
+                    return FALSE;
+                case IDC_MACRO6HEXRB:
+                    CheckRadioButton(hdlg, IDC_MACRO6ASCIIRB, IDC_MACRO6HEXRB, IDC_MACRO6HEXRB);
+                    return FALSE;
+                case IDC_MACRO7HEXRB:
+                    CheckRadioButton(hdlg, IDC_MACRO7ASCIIRB, IDC_MACRO7HEXRB, IDC_MACRO7HEXRB);
+                    return FALSE;
+                case IDC_MACRO8HEXRB:
+                    CheckRadioButton(hdlg, IDC_MACRO8ASCIIRB, IDC_MACRO8HEXRB, IDC_MACRO8HEXRB);
+                    return FALSE;
+                case IDC_MACRO9HEXRB:
+                    CheckRadioButton(hdlg, IDC_MACRO9ASCIIRB, IDC_MACRO9HEXRB, IDC_MACRO9HEXRB);
+                    return FALSE;
+                case IDC_MACRO10HEXRB:
+                    CheckRadioButton(hdlg, IDC_MACRO10ASCIIRB, IDC_MACRO10HEXRB, IDC_MACRO10HEXRB);
+                    return FALSE;
+            }
+        break;
+    }
+
+    return FALSE;
+}
+
 
 /*-----------------------------------------------------------------------------
 
@@ -771,13 +1199,13 @@ void InitHexControl(HWND hdlg, WORD wIdNumberBox, WORD wIdCharBox, char chData)
 {
     char szFlagText[3] = {0};
     char szFlagChar[2] = {0};
-    
+
     //
     // put character into char edit display control
     //
     szFlagChar[0] = chData;
     SetDlgItemText(hdlg, wIdCharBox, szFlagChar);
-    
+
     //
     // put flag character into hex numeric edit control
     //
@@ -786,6 +1214,7 @@ void InitHexControl(HWND hdlg, WORD wIdNumberBox, WORD wIdCharBox, char chData)
 
     return;
 }
+
 
 /*-----------------------------------------------------------------------------
 
@@ -817,7 +1246,7 @@ char GetHexControl(HWND hdlg, WORD wIdNumberBox, WORD wIdCharBox)
     UINT uFlagValue;
     char chFlagEntered[3] = {0};
     char chFlag[2] = {0};
-    
+
     //
     // get numeric value from control
     //
@@ -831,7 +1260,8 @@ char GetHexControl(HWND hdlg, WORD wIdNumberBox, WORD wIdCharBox)
 
     return chFlag[0];
 }
-    
+
+
 /*-----------------------------------------------------------------------------
 
 FUNCTION: InitCommEventsDlg(HWND, DWORD)
@@ -842,8 +1272,8 @@ PARAMETERS:
     hdlg         - Dialog window handle
     dwEventFlags - event flag to set controls to
 
-COMMENTS: Since controls are checked based on the dwEventFlags parameter, 
-	  it is easy to init control based on current settings, 
+COMMENTS: Since controls are checked based on the dwEventFlags parameter,
+	  it is easy to init control based on current settings,
 	  or default settings.
 
 HISTORY:   Date:      Author:     Comment:
@@ -864,6 +1294,7 @@ void InitCommEventsDlg(HWND hdlg, DWORD dwEventFlags)
 
     return;
 }
+
 
 /*-----------------------------------------------------------------------------
 
@@ -915,6 +1346,7 @@ void SaveCommEventsDlg(HWND hdlg)
     return;
 }
 
+
 /*-----------------------------------------------------------------------------
 
 FUNCTION: CommEventsProc(HWND, UINT, WPARAM, LPARAM)
@@ -944,12 +1376,12 @@ BOOL CALLBACK CommEventsProc(HWND hdlg, UINT uMessage, WPARAM wparam, LPARAM lpa
 	    InitCommEventsDlg(hdlg, EVENTFLAGS(TTYInfo));
 	    break;
 
-	case WM_COMMAND: 
+	case WM_COMMAND:
 	    switch(LOWORD(wparam))
 	    {
 		case IDOK:
 		    SaveCommEventsDlg(hdlg);
-		    
+
 		    //
 		    // FALL THROUGH
 		    //
@@ -977,6 +1409,7 @@ BOOL CALLBACK CommEventsProc(HWND hdlg, UINT uMessage, WPARAM wparam, LPARAM lpa
     return FALSE;
 }
 
+
 /*-----------------------------------------------------------------------------
 
 FUNCTION: SaveFlowControlDlg(HWND)
@@ -1003,12 +1436,12 @@ void SaveFlowControlDlg(HWND hdlg)
     //
     // update DTR and RTS control if needed
     //
-    dwNewDTRControl = GetdwTTYItem( hdlg, IDC_DTRCONTROLCOMBO, 
-				    szDTRControlStrings, DTRControlTable, 
+    dwNewDTRControl = GetdwTTYItem( hdlg, IDC_DTRCONTROLCOMBO,
+				    szDTRControlStrings, DTRControlTable,
 				    sizeof(DTRControlTable)/sizeof(DTRControlTable[0]));
 
-    dwNewRTSControl = GetdwTTYItem( hdlg, IDC_RTSCONTROLCOMBO, 
-				    szRTSControlStrings, RTSControlTable, 
+    dwNewRTSControl = GetdwTTYItem( hdlg, IDC_RTSCONTROLCOMBO,
+				    szRTSControlStrings, RTSControlTable,
 				    sizeof(RTSControlTable)/sizeof(RTSControlTable[0]));
     if (dwNewRTSControl != RTSCONTROL(TTYInfo) ||
 	    dwNewDTRControl != DTRCONTROL(TTYInfo)) {
@@ -1051,7 +1484,7 @@ void SaveFlowControlDlg(HWND hdlg)
     fNewXOut   = IsDlgButtonChecked(hdlg, IDC_XONXOFFOUTCHK);
     fNewXIn    = IsDlgButtonChecked(hdlg, IDC_XONXOFFINCHK);
 
-    if (fNewTXafterXoffSent != TXAFTERXOFFSENT(TTYInfo) || 
+    if (fNewTXafterXoffSent != TXAFTERXOFFSENT(TTYInfo) ||
 	    fNewCTSOut != CTSOUTFLOW(TTYInfo) ||
 	    fNewDSROut != DSROUTFLOW(TTYInfo) ||
 	    fNewDSRIn  != DSRINFLOW(TTYInfo)  ||
@@ -1064,7 +1497,7 @@ void SaveFlowControlDlg(HWND hdlg)
 	XONXOFFINFLOW(TTYInfo)  = fNewXIn;
 	TXAFTERXOFFSENT(TTYInfo) = fNewTXafterXoffSent;
 	fUpdateDCB = TRUE;
-    }    
+    }
 
     //
     // update current settings if they have actually changed
@@ -1074,6 +1507,7 @@ void SaveFlowControlDlg(HWND hdlg)
 
     return;
 }
+
 
 /*-----------------------------------------------------------------------------
 
@@ -1109,8 +1543,8 @@ void InitFlowControlDlg(HWND hdlg)
     //
     // XON/XOFF characters
     //
-    InitHexControl(hdlg, IDC_XONCHAREDIT, IDC_XONCHARDISP, XONCHAR(TTYInfo));   
-    InitHexControl(hdlg, IDC_XOFFCHAREDIT, IDC_XOFFCHARDISP, XOFFCHAR(TTYInfo));    
+    InitHexControl(hdlg, IDC_XONCHAREDIT, IDC_XONCHARDISP, XONCHAR(TTYInfo));
+    InitHexControl(hdlg, IDC_XOFFCHAREDIT, IDC_XOFFCHARDISP, XOFFCHAR(TTYInfo));
 
     //
     // XON/XOFF limits
@@ -1130,6 +1564,7 @@ void InitFlowControlDlg(HWND hdlg)
 
     return;
 }
+
 
 /*-----------------------------------------------------------------------------
 
@@ -1152,14 +1587,14 @@ HISTORY:   Date:      Author:     Comment:
 void FlowDefault(HWND hdlg, WORD wId)
 {
     //
-    // set dtr control to handshake if using DTR/DSR flow-control 
+    // set dtr control to handshake if using DTR/DSR flow-control
     //
     SetComboBox( GetDlgItem( hdlg, IDC_DTRCONTROLCOMBO ),
 		  sizeof( DTRControlTable) / sizeof( DTRControlTable[0] ),
 		  wId == IDC_DTRDSRBTN ? DTR_CONTROL_HANDSHAKE : DTR_CONTROL_ENABLE);
 
     //
-    // set rts control to handshake if using RTS/CTS flow-control 
+    // set rts control to handshake if using RTS/CTS flow-control
     //
     SetComboBox( GetDlgItem( hdlg, IDC_RTSCONTROLCOMBO ),
 		  sizeof( RTSControlTable) / sizeof( RTSControlTable[0] ),
@@ -1192,10 +1627,11 @@ void FlowDefault(HWND hdlg, WORD wId)
     //
     CheckDlgButton(hdlg, IDC_DSRINCHK, FALSE);
     CheckDlgButton(hdlg, IDC_TXAFTERXOFFSENTCHK, FALSE);
-     
+
 
     return;
 }
+
 
 /*-----------------------------------------------------------------------------
 
@@ -1226,7 +1662,7 @@ BOOL CALLBACK FlowControlProc(HWND hdlg, UINT uMessage, WPARAM wparam, LPARAM lp
 	    InitFlowControlDlg(hdlg);
 	    break;
 
-	case WM_COMMAND: 
+	case WM_COMMAND:
 	    switch(LOWORD(wparam))
 	    {
 		case IDOK:
@@ -1234,9 +1670,9 @@ BOOL CALLBACK FlowControlProc(HWND hdlg, UINT uMessage, WPARAM wparam, LPARAM lp
 			//
 			// FALL THROUGH
 			//
-		
-		case IDCANCEL:          
-			EndDialog(hdlg, LOWORD(wparam));          
+
+		case IDCANCEL:
+			EndDialog(hdlg, LOWORD(wparam));
 			return TRUE;
 
 		case IDC_RTSCTSBTN:
@@ -1259,6 +1695,7 @@ BOOL CALLBACK FlowControlProc(HWND hdlg, UINT uMessage, WPARAM wparam, LPARAM lp
 
     return FALSE;
 }
+
 
 /*-----------------------------------------------------------------------------
 
@@ -1317,25 +1754,25 @@ void SaveTimeoutsDlg(HWND hdlg)
     // set new timeouts if they are different
     //
     if (memcmp(&ctNew, &(TIMEOUTSNEW(TTYInfo)), sizeof(COMMTIMEOUTS))) {
-	//
-	// if connected, set new time outs and purge pending operations
-	//
-	if (CONNECTED(TTYInfo)) {
-	    if (!SetCommTimeouts(COMDEV(TTYInfo), &ctNew)) {
-		ErrorReporter("SetCommTimeouts");
-		return;
-	    }
-	    
-	    if (!PurgeComm(COMDEV(TTYInfo), PURGE_TXABORT | PURGE_RXABORT))
-		ErrorReporter("PurgeComm");
-	}
+        //
+        // if connected, set new time outs and purge pending operations
+        //
+        if (CONNECTED(TTYInfo)) {
+            if (!SetCommTimeouts(COMDEV(TTYInfo), &ctNew)) {
+            ErrorReporter("SetCommTimeouts");
+            return;
+            }
 
-	//
-	// save timeouts in the tty info structure
-	//
-	TIMEOUTSNEW(TTYInfo) = ctNew;
+            if (!PurgeComm(COMDEV(TTYInfo), PURGE_TXABORT | PURGE_RXABORT))
+            ErrorReporter("PurgeComm");
+        }
+
+        //
+        // save timeouts in the tty info structure
+        //
+        TIMEOUTSNEW(TTYInfo) = ctNew;
     }
-    
+
     return;
 }
 
@@ -1373,13 +1810,13 @@ BOOL CALLBACK TimeoutsProc(HWND hdlg, UINT uMessage, WPARAM wparam, LPARAM lpara
 	    {
 		case IDOK:
 			SaveTimeoutsDlg(hdlg);
-			
+
 			//
 			// FALL THROUGH
-			// 
-		
+			//
+
 		case IDCANCEL:
-			EndDialog(hdlg, LOWORD(wparam));          
+			EndDialog(hdlg, LOWORD(wparam));
 			return TRUE;
 
 		case IDC_DEFAULTSBTN:
@@ -1402,10 +1839,10 @@ BOOL CALLBACK GetADWORDProc(HWND hDlg, UINT uMessage, WPARAM wParam, LPARAM lPar
 		iRet = GetDlgItemInt(hDlg, IDC_DWORDEDIT, NULL, FALSE);
 		//
 		// FALL THROUGH
-		// 
-	
+		//
+
 	    case IDCANCEL:
-		EndDialog(hDlg, iRet);          
+		EndDialog(hDlg, iRet);
 		return TRUE;
 	}
     }

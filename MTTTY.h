@@ -1,11 +1,11 @@
 
 /*-----------------------------------------------------------------------------
-    This is a part of the Microsoft Source Code Samples. 
+    This is a part of the Microsoft Source Code Samples.
     Copyright (C) 1995 Microsoft Corporation.
-    All rights reserved. 
-    This source code is only intended as a supplement to 
+    All rights reserved.
+    This source code is only intended as a supplement to
     Microsoft Development Tools and/or WinHelp documentation.
-    See these sources for detailed information regarding the 
+    See these sources for detailed information regarding the
     Microsoft samples programs.
 
     MODULE: MTTTY.h
@@ -31,7 +31,7 @@
 #define READ_TIMEOUT            500
 #define STATUS_CHECK_TIMEOUT    500
 #define WRITE_CHECK_TIMEOUT     500
-#define PURGE_FLAGS             PURGE_TXABORT | PURGE_TXCLEAR | PURGE_RXABORT | PURGE_RXCLEAR 
+#define PURGE_FLAGS             PURGE_TXABORT | PURGE_TXCLEAR | PURGE_RXABORT | PURGE_RXCLEAR
 #define EVENTFLAGS_DEFAULT      EV_BREAK | EV_CTS | EV_DSR | EV_ERR | EV_RING | EV_RLSD
 #define FLAGCHAR_DEFAULT        '\n'
 
@@ -54,17 +54,19 @@
 //
 // window coords
 //
-#define MAXXWINDOW          750
+//#define MAXXWINDOW          750
+#define MAXXWINDOW          850
 #define MAXYWINDOW          530
 #define STARTXWINDOW        80
 #define STARTYWINDOW        70
 
-#define SETTINGSFACTOR      5
+//#define SETTINGSFACTOR      5
+#define SETTINGSFACTOR      7
 #define STATUSFACTOR        5
 
 //
 // window timer ids
-// 
+//
 #define TIMERID             1
 
 //
@@ -112,7 +114,7 @@ HANDLE ghStatusMessageHeap;
 HFONT ghFontStatus;
 int   gnStatusIndex;
 
-typedef struct STATUS_MESSAGE;
+//typedef struct STATUS_MESSAGE;
 
 struct STATUS_MESSAGE * glpStatusMessageHead;
 struct STATUS_MESSAGE * glpStatusMessageTail;
@@ -141,7 +143,7 @@ HANDLE ghTransferCompleteEvent;
 //
 //  Write request data structure; look in Writer.c for more info
 //
-typedef struct WRITEREQUEST;
+// typedef struct WRITEREQUEST;
 
 struct WRITEREQUEST *gpWriterHead;
 struct WRITEREQUEST *gpWriterTail;
@@ -166,9 +168,9 @@ typedef struct WRITEREQUEST
 //
 //  Error functions
 //
-void ErrorReporter( char * szMessage );
-void ErrorHandler( char * szMessage );
-void ErrorInComm( char * szMessage );
+void ErrorReporter( const char * szMessage );
+void ErrorHandler( const char * szMessage );
+void ErrorInComm( const char * szMessage );
 
 //
 //  Initialization/deinitialization/settings functions
@@ -209,7 +211,7 @@ DWORD WINAPI WriterProc( LPVOID );
 //
 //  File transfer functions
 //
-void CALLBACK TransferRepeatDo( UINT, UINT, DWORD, DWORD, DWORD );  
+void CALLBACK TransferRepeatDo( UINT, UINT, DWORD, DWORD, DWORD );
 void TransferRepeatCreate( LPCSTR, DWORD );
 void TransferRepeatDestroy( void );
 void TransferFileTextStart( LPCSTR );
@@ -229,12 +231,12 @@ BOOL ClearTTYContents( void );
 //  Status functions
 //
 HFONT CreateStatusEditFont( void );
-void ReportStatusEvent( DWORD ); 
+void ReportStatusEvent( DWORD );
 void CheckModemStatus( BOOL );
 void ReportCommError( void );
 void ReportComStat( COMSTAT );
 void StatusMessage( void );
-void UpdateStatus( char * );
+void UpdateStatus( const char * );
 void CheckComStat( BOOL );
 
 //
@@ -245,3 +247,5 @@ BOOL WriterAddExistingNode( PWRITEREQUEST, DWORD, DWORD, char, char *, HANDLE, H
 BOOL WriterAddNewNodeTimeout( DWORD, DWORD, char, char *, HANDLE, HWND, DWORD );
 BOOL WriterAddFirstNodeTimeout( DWORD, DWORD, char, char *, HANDLE, HWND, DWORD );
 
+// other functions
+BOOL CmdHelp(HWND hwnd);

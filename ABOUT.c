@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
 
-    This is a part of the Microsoft Source Code Samples. 
+    This is a part of the Microsoft Source Code Samples.
     Copyright (C) 1995 Microsoft Corporation.
-    All rights reserved. 
-    This source code is only intended as a supplement to 
+    All rights reserved.
+    This source code is only intended as a supplement to
     Microsoft Development Tools and/or WinHelp documentation.
-    See these sources for detailed information regarding the 
+    See these sources for detailed information regarding the
     Microsoft samples programs.
 
     MODULE:   About.c
@@ -63,24 +63,24 @@ HISTORY:   Date:      Author:     Comment:
 UINT InitAboutDlg(HWND hDlg)
 {
     UINT uTimer;
-    char * szFormat = "Microsoft Windows %s\r\nVersion %d.%d\r\nBuild %d ";
+    const char * szFormat = "Microsoft Windows %s\r\nVersion %d.%d\r\nBuild %d ";
     char szVersion[256];
-    
-    /*    
+
+    /*
         create timer and set initial icon id
     */
     uTimer = SetTimer(hDlg, 1, 100, NULL);
     if (uTimer == 0)
         ErrorReporter("SetTimer");
-    wsprintf(szVersion, szFormat, 
+    wsprintf(szVersion, szFormat,
                     gOSV.dwPlatformId == VER_PLATFORM_WIN32_NT ? "NT" : "95",
-                    gOSV.dwMajorVersion, 
-                    gOSV.dwMinorVersion, 
+                    gOSV.dwMajorVersion,
+                    gOSV.dwMinorVersion,
                     LOWORD( gOSV.dwBuildNumber ) );
 
     if (strlen(gOSV.szCSDVersion))
         strcat(szVersion, gOSV.szCSDVersion);
-                            
+
     SetDlgItemText(hDlg, IDC_OSVERSIONINFO, szVersion);
 
     return uTimer;
@@ -128,7 +128,7 @@ BOOL CALLBACK AboutDlgProc(HWND hdlg, UINT uMessage, WPARAM wparam, LPARAM lpara
                     case IDI_APPICON3:  wCurrentIconId = IDI_APPICON4;  break;
                     case IDI_APPICON4:  wCurrentIconId = IDI_APPICON;   break;
                 }
-            
+
                 hIcon = LoadIcon(ghInst, MAKEINTRESOURCE(wCurrentIconId));
                 SendMessage(GetDlgItem(hdlg, IDC_PICTURE), STM_SETICON, (WPARAM) hIcon, 0);
             }

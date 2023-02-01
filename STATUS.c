@@ -1,10 +1,10 @@
 /*-----------------------------------------------------------------------------
-    This is a part of the Microsoft Source Code Samples. 
+    This is a part of the Microsoft Source Code Samples.
     Copyright (C) 1995 Microsoft Corporation.
-    All rights reserved. 
-    This source code is only intended as a supplement to 
+    All rights reserved.
+    This source code is only intended as a supplement to
     Microsoft Development Tools and/or WinHelp documentation.
-    See these sources for detailed information regarding the 
+    See these sources for detailed information regarding the
     Microsoft samples programs.
 
     MODULE:   Status.c
@@ -82,8 +82,9 @@ HISTORY:   Date:      Author:     Comment:
 -----------------------------------------------------------------------------*/
 HFONT CreateStatusEditFont()
 {
-    LOGFONT lf = {0};
+    LOGFONT lf;
     HFONT   hFont;
+    memset(&lf, 0, sizeof(LOGFONT));
 
     lf.lfHeight         = 14 ;
     lf.lfCharSet        = ANSI_CHARSET ;
@@ -128,7 +129,7 @@ BOOL CALLBACK StatusDlgProc(HWND hWndDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
             InitStatusMessage();
             break;
 
-        case WM_COMMAND: 
+        case WM_COMMAND:
             {
                 switch(LOWORD(wParam))
                 {
@@ -164,7 +165,7 @@ BOOL CALLBACK StatusDlgProc(HWND hWndDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 
         default:
             break;
-    }    
+    }
 
     return fRet;
 }
@@ -188,7 +189,7 @@ void InitStatusMessage()
     if (ghStatusMessageHeap == NULL)
         ErrorReporter("HeapCreate (Status message)");
 
-    glpStatusMessageHead = HeapAlloc(ghStatusMessageHeap, HEAP_ZERO_MEMORY, sizeof(STATUS_MESSAGE));
+    glpStatusMessageHead = (STATUS_MESSAGE*)HeapAlloc(ghStatusMessageHeap, HEAP_ZERO_MEMORY, sizeof(STATUS_MESSAGE));
     glpStatusMessageTail = glpStatusMessageHead;
 
     gnStatusIndex = 0;
@@ -232,13 +233,13 @@ void StatusMessage()
         then wipe them out and start over
     */
     if (gnStatusIndex > MAX_STATUS_BUFFER) {
-        SendMessageTimeout( hEdit, EM_SETSEL, 
+        SendMessageTimeout( hEdit, EM_SETSEL,
                             (WPARAM) (INT) 0, (LPARAM) (INT) -1,
-                            SMTO_NORMAL | SMTO_ABORTIFHUNG, 
+                            SMTO_NORMAL | SMTO_ABORTIFHUNG,
                             500, &dwRes);
-        SendMessageTimeout( hEdit, EM_REPLACESEL, 
+        SendMessageTimeout( hEdit, EM_REPLACESEL,
                             0, (LPARAM) "",
-                            SMTO_NORMAL | SMTO_ABORTIFHUNG, 
+                            SMTO_NORMAL | SMTO_ABORTIFHUNG,
                             500, &dwRes);
         gnStatusIndex = 0;
     }
@@ -254,16 +255,16 @@ void StatusMessage()
         if (WaitForSingleObject(ghThreadExitEvent, 0) == WAIT_OBJECT_0)
             break;
 
-        // 
+        //
         // Place each status message into the status control.
         //
-        SendMessageTimeout( hEdit, EM_SETSEL, 
-                            gnStatusIndex, gnStatusIndex, 
-                            SMTO_NORMAL | SMTO_ABORTIFHUNG, 
+        SendMessageTimeout( hEdit, EM_SETSEL,
+                            gnStatusIndex, gnStatusIndex,
+                            SMTO_NORMAL | SMTO_ABORTIFHUNG,
                             500, &dwRes);
-        SendMessageTimeout( hEdit, EM_REPLACESEL, 
+        SendMessageTimeout( hEdit, EM_REPLACESEL,
                             0, (LPARAM) ((LPSTR) &(lpStatusMessage->chMessageStart)),
-                            SMTO_NORMAL | SMTO_ABORTIFHUNG, 
+                            SMTO_NORMAL | SMTO_ABORTIFHUNG,
                             500, &dwRes);
         gnStatusIndex += strlen(&(lpStatusMessage->chMessageStart));
 
@@ -273,7 +274,7 @@ void StatusMessage()
         EnterCriticalSection(&gStatusCritical);
 
         bRes = HeapFree(ghStatusMessageHeap, 0, glpStatusMessageHead);
-        
+
         glpStatusMessageHead = lpStatusMessage;
         lpStatusMessage = lpStatusMessage->lpNext;
 
@@ -290,7 +291,7 @@ void StatusMessage()
 
 FUNCTION: UpdateStatus(char *)
 
-PURPOSE: Places the passed in string into the status message linked 
+PURPOSE: Places the passed in string into the status message linked
          list and sets the event to make the message display.
 
 PARAMETERS:
@@ -304,12 +305,12 @@ HISTORY:   Date:      Author:     Comment:
            11/21/95   AllenD      Modified to use a status message heap
 
 -----------------------------------------------------------------------------*/
-void UpdateStatus(char * szText)
+void UpdateStatus(const char * szText)
 {
     char * szNewMsg;
     DWORD dwSize;
     STATUS_MESSAGE * lpStatusMessage;
-    static dwMessageCounter = 0;
+    static int dwMessageCounter = 0;
 
     dwMessageCounter++;
 
@@ -317,7 +318,7 @@ void UpdateStatus(char * szText)
 
     EnterCriticalSection(&gStatusCritical);
 
-    szNewMsg = HeapAlloc(ghStatusMessageHeap, 0, dwSize+30);
+    szNewMsg = (char*)HeapAlloc(ghStatusMessageHeap, 0, dwSize+30);
     if (szNewMsg == NULL) {
         LeaveCriticalSection(&gStatusCritical);
         ErrorReporter("HeapAlloc (status message)");
@@ -331,13 +332,13 @@ void UpdateStatus(char * szText)
         }
     }
 
-    lpStatusMessage = HeapAlloc(ghStatusMessageHeap, 0, sizeof(LPSTR) + dwSize );
+    lpStatusMessage = (STATUS_MESSAGE*)HeapAlloc(ghStatusMessageHeap, 0, sizeof(LPSTR) + dwSize );
     if (lpStatusMessage == NULL) {
         LeaveCriticalSection(&gStatusCritical);
         ErrorReporter("HeapAlloc (status message)");
         return ;
     }
-      
+
     lpStatusMessage->lpNext = NULL;
     glpStatusMessageTail->lpNext = lpStatusMessage;
     glpStatusMessageTail = lpStatusMessage;
@@ -401,13 +402,14 @@ HISTORY:   Date:      Author:     Comment:
 void CheckModemStatus( BOOL bUpdateNow )
 {
     //
-    // dwOldStatus needs to be static so that it is maintained 
+    // dwOldStatus needs to be static so that it is maintained
     // between function calls by the same thread.
-    // It also needs to be __declspec(thread) so that it is 
+    // It also needs to be __declspec(thread) so that it is
     // initialized when a new thread is created.
     //
 
-    __declspec(thread) static DWORD dwOldStatus = 0;
+    //__declspec(thread) static DWORD dwOldStatus = 0;
+    static __thread DWORD dwOldStatus = 0;
 
     DWORD dwNewModemStatus;
 
@@ -432,7 +434,7 @@ FUNCTION: ReportComStat( COMSTAT )
 PURPOSE: Update status dialog controls based on the COMSTAT structure
 
 PARAMETERS:
-    ComStat - comstat structure used to update comm stat controls.  
+    ComStat - comstat structure used to update comm stat controls.
 
 HISTORY:   Date:      Author:     Comment:
            12/01/95   AllenD      Wrote it
@@ -478,8 +480,12 @@ void CheckComStat(BOOL bUpdateNow)
     COMSTAT ComStatNew;
     DWORD dwErrors;
 
-    __declspec(thread) static COMSTAT ComStatOld = {0};
-    __declspec(thread) static DWORD dwErrorsOld = 0;
+    //__declspec(thread) static COMSTAT ComStatOld;
+    //__declspec(thread) static DWORD dwErrorsOld = 0;
+    static __thread COMSTAT ComStatOld;
+    static __thread DWORD dwErrorsOld = 0;
+
+    memset(&ComStatOld, 0, sizeof(COMSTAT));
 
     BOOL bReport = bUpdateNow;
 
@@ -495,7 +501,7 @@ void CheckComStat(BOOL bUpdateNow)
         bReport = TRUE;
         ComStatOld = ComStatNew;
     }
-    
+
     if (bReport)
         ReportComStat(ComStatNew);
 
@@ -570,7 +576,7 @@ void ReportCommError()
     //
     if (dwErrors)
         UpdateStatus(szMessage);
-    
+
     //
     // Report info from the COMSTAT structure
     //
@@ -593,10 +599,10 @@ void ReportCommError()
 
     if (comStat.fXoffSent)
         UpdateStatus("Tx waiting, XOFF char sent.\r\n");
-    
+
     if (comStat.fEof)
         UpdateStatus("EOF character received.\r\n");
-    
+
     if (comStat.fTxim)
         UpdateStatus("Character waiting for Tx.\r\n");
 
@@ -652,7 +658,7 @@ void ReportStatusEvent(DWORD dwStatus)
     fTXEMPTY = EV_TXEMPTY & dwStatus;
 
     /*
-        Construct status message indicating the 
+        Construct status message indicating the
         status event flags that are set.
     */
     strcpy(szMessage, "EVENT: ");
@@ -677,7 +683,7 @@ void ReportStatusEvent(DWORD dwStatus)
 
     //
     // Queue the status message for the status control
-    // 
+    //
     UpdateStatus(szMessage);
 
     /*
@@ -687,7 +693,7 @@ void ReportStatusEvent(DWORD dwStatus)
     */
     if (fERR)
         ReportCommError();
-    
+
     /*
         Might as well check the modem status and comm status now since
         the event may have been caused by a change in line status.
@@ -696,8 +702,8 @@ void ReportStatusEvent(DWORD dwStatus)
     CheckModemStatus( FALSE );
 
     /*
-        Since line status can affect sending/receiving when 
-        hardware flow-control is used, ReportComStat should 
+        Since line status can affect sending/receiving when
+        hardware flow-control is used, ReportComStat should
         be called to show comm status.  This is called only if no error
         was reported in the event flag.  If an error was reported, then
         ReportCommError was called above and CheckComStat was already called

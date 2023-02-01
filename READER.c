@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
 
-    This is a part of the Microsoft Source Code Samples. 
+    This is a part of the Microsoft Source Code Samples.
     Copyright (C) 1995 Microsoft Corporation.
-    All rights reserved. 
-    This source code is only intended as a supplement to 
+    All rights reserved.
+    This source code is only intended as a supplement to
     Microsoft Development Tools and/or WinHelp documentation.
-    See these sources for detailed information regarding the 
+    See these sources for detailed information regarding the
     Microsoft samples programs.
 
     MODULE: Reader.c
@@ -21,6 +21,7 @@
 
 #include <windows.h>
 #include <commctrl.h>
+#include <stdio.h>
 
 #include "MTTTY.h"
 
@@ -28,6 +29,67 @@
     Prototypes for functions call only within this file
 */
 void OutputABufferToFile( HANDLE, char *, DWORD );
+
+void OutputACharToWindow(HWND hTTY, char c)
+{
+    RECT rect;
+
+    /*
+        update screen buffer with new character
+        need to do a character by character check
+        for special characters
+    */
+    switch (c)
+    {
+        case ASCII_BEL:                // BELL CHAR
+            MessageBeep( 0 ) ;
+        break ;
+
+        case ASCII_BS:                 // Backspace CHAR
+            if (COLUMN( TTYInfo ) > 0) COLUMN( TTYInfo ) -- ;
+        break ;
+
+        case ASCII_CR:                 // Carriage Return
+            COLUMN( TTYInfo ) = 0 ;
+            if (!NEWLINE( TTYInfo )) break;
+
+            //
+            // FALL THROUGH
+            //
+
+        case ASCII_LF:                 // Line Feed
+            if (ROW( TTYInfo )++ == MAXROWS - 1)
+            {
+                MoveMemory( (LPSTR) (SCREEN( TTYInfo )), (LPSTR) (SCREEN( TTYInfo ) + MAXCOLS), (MAXROWS - 1) * MAXCOLS ) ;
+                FillMemory((LPSTR) (SCREEN( TTYInfo ) + (MAXROWS - 1) * MAXCOLS), MAXCOLS,  ' ' ) ;
+                InvalidateRect( hTTY, NULL, FALSE ) ;
+                ROW( TTYInfo )-- ;
+            }
+        break ;
+
+        default:                       // standard character
+            SCREENCHAR(TTYInfo, COLUMN(TTYInfo), ROW(TTYInfo)) = c;
+
+            rect.left = (COLUMN( TTYInfo ) * XCHAR( TTYInfo )) - XOFFSET( TTYInfo ) ;
+            rect.right = rect.left + XCHAR( TTYInfo ) ;
+            rect.top = (ROW( TTYInfo ) * YCHAR( TTYInfo )) - YOFFSET( TTYInfo ) ;
+            rect.bottom = rect.top + YCHAR( TTYInfo ) ;
+            InvalidateRect( hTTY, &rect, FALSE ) ;
+
+            //
+            // Line wrap
+            //
+            if (COLUMN( TTYInfo ) < MAXCOLS-1 ) COLUMN( TTYInfo )++ ;
+            else if (AUTOWRAP( TTYInfo ))
+            {
+                OutputACharToWindow(hTTY, '\r') ;
+                if (!NEWLINE( TTYInfo )) OutputACharToWindow(hTTY, '\n') ;
+            }
+        break;
+    }
+
+    MoveTTYCursor(hTTY);
+}
 
 
 /*-----------------------------------------------------------------------------
@@ -48,73 +110,39 @@ HISTORY:   Date       Author      Comment
 -----------------------------------------------------------------------------*/
 void OutputABufferToWindow(HWND hTTY, char * lpBuf, DWORD dwBufLen)
 {
-    RECT rect;
-
     /*
         update screen buffer with new buffer
         need to do a character by character check
         for special characters
     */
     int i;
+    char hexbuff[8];
 
-    for ( i = 0 ; i < (int) dwBufLen; i++) {
-        switch (lpBuf[ i ]) {
-            case ASCII_BEL:                // BELL CHAR
-                MessageBeep( 0 ) ;
-                break ;
+    for ( i = 0 ; i < (int) dwBufLen; i++)
+    {
+        if(DISPLAYHEX( TTYInfo ))
+        {
+            sprintf(hexbuff, "%02x", lpBuf[ i ]);
 
-            case ASCII_BS:                 // Backspace CHAR
-                if (COLUMN( TTYInfo ) > 0)
-                   COLUMN( TTYInfo ) -- ;
-                break ;
-
-            case ASCII_CR:                 // Carriage Return
-                COLUMN( TTYInfo ) = 0 ;
-                if (!NEWLINE( TTYInfo ))
-                    break;
-
-                //
-                // FALL THROUGH
-                //
-
-            case ASCII_LF:                 // Line Feed
-                if (ROW( TTYInfo )++ == MAXROWS - 1)
-                {
-                    MoveMemory( (LPSTR) (SCREEN( TTYInfo )),
-                                  (LPSTR) (SCREEN( TTYInfo ) + MAXCOLS),
-                                  (MAXROWS - 1) * MAXCOLS ) ;
-                    FillMemory((LPSTR) (SCREEN( TTYInfo ) + (MAXROWS - 1) * MAXCOLS),
-                                  MAXCOLS,  ' ' ) ;
-                    InvalidateRect( hTTY, NULL, FALSE ) ;
-                    ROW( TTYInfo )-- ;
-                }
-                break ;
-
-            default:                       // standard character
-                SCREENCHAR(TTYInfo, COLUMN(TTYInfo), ROW(TTYInfo)) = lpBuf[ i ];
-
-                rect.left = (COLUMN( TTYInfo ) * XCHAR( TTYInfo )) -
-                            XOFFSET( TTYInfo ) ;
-                rect.right = rect.left + XCHAR( TTYInfo ) ;
-                rect.top = (ROW( TTYInfo ) * YCHAR( TTYInfo )) -
-                           YOFFSET( TTYInfo ) ;
-                rect.bottom = rect.top + YCHAR( TTYInfo ) ;
-                InvalidateRect( hTTY, &rect, FALSE ) ;
-
-                // 
-                // Line wrap
-                //
-                if (COLUMN( TTYInfo ) < MAXCOLS-1 )
-                    COLUMN( TTYInfo )++ ;
-                else if (AUTOWRAP( TTYInfo ))
-                    OutputABufferToWindow(hTTY, "\r\n", 2 ) ;
-                
-                break;
+            OutputACharToWindow(hTTY, hexbuff[0]) ;
+            OutputACharToWindow(hTTY, hexbuff[1]) ;
         }
-    }
+        else if(NONPRINTHEX( TTYInfo ))
+        {
+            unsigned c = lpBuf[ i ];
+            if(c < ' ' || c > '~')
+            {
+                sprintf(hexbuff, "<%02x>", lpBuf[ i ]);
 
-    MoveTTYCursor(hTTY);
-    return;
+                OutputACharToWindow(hTTY, hexbuff[0]) ;
+                OutputACharToWindow(hTTY, hexbuff[1]) ;
+                OutputACharToWindow(hTTY, hexbuff[2]) ;
+                OutputACharToWindow(hTTY, hexbuff[3]) ;
+            }
+            else OutputACharToWindow(hTTY, c ) ;
+        }
+        else OutputACharToWindow(hTTY, lpBuf[ i ] ) ;
+    }
 }
 
 /*-----------------------------------------------------------------------------
@@ -144,7 +172,7 @@ void OutputABufferToFile(HANDLE hFile, char * lpBuf, DWORD dwBufLen)
 
     if (dwBufLen != dwWritten)
         ErrorReporter("WriteFile");
-    
+
     //
     // update transfer progress bar
     //

@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
 
-    This is a part of the Microsoft Source Code Samples. 
+    This is a part of the Microsoft Source Code Samples.
     Copyright (C) 1995 Microsoft Corporation.
-    All rights reserved. 
-    This source code is only intended as a supplement to 
+    All rights reserved.
+    This source code is only intended as a supplement to
     Microsoft Development Tools and/or WinHelp documentation.
-    See these sources for detailed information regarding the 
+    See these sources for detailed information regarding the
     Microsoft samples programs.
 
     MODULE: Init.c
@@ -85,7 +85,7 @@ void GlobalInitialize()
     //
     ghThreadExitEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
     if (ghThreadExitEvent == NULL)
-        ErrorReporter("CreateEvent (Thread exit event)");        
+        ErrorReporter("CreateEvent (Thread exit event)");
 
     //
     // used in file transfer status bar
@@ -152,6 +152,8 @@ HISTORY:   Date:      Author:     Comment:
 BOOL ClearTTYContents()
 {
     FillMemory(SCREEN(TTYInfo), MAXCOLS*MAXROWS, ' ');
+    COLUMN( TTYInfo ) = 0;
+    ROW( TTYInfo ) = MAXROWS - 1;
     return TRUE;
 }
 
@@ -232,7 +234,10 @@ BOOL InitTTYInfo()
     PARITY( TTYInfo )        = NOPARITY ;
     STOPBITS( TTYInfo )      = ONESTOPBIT ;
     AUTOWRAP( TTYInfo )      = TRUE;
-    NEWLINE( TTYInfo )       = FALSE;
+    //NEWLINE( TTYInfo )       = FALSE;
+    NEWLINE( TTYInfo )       = TRUE;
+    NONPRINTHEX( TTYInfo )   = TRUE;
+    DISPLAYHEX( TTYInfo )    = FALSE;
     XSIZE( TTYInfo )         = 0 ;
     YSIZE( TTYInfo )         = 0 ;
     XSCROLL( TTYInfo )       = 0 ;
@@ -249,7 +254,7 @@ BOOL InitTTYInfo()
     //
     // read state and status events
     //
-    gdwReceiveState            = RECEIVE_TTY;
+    gdwReceiveState          = RECEIVE_TTY;
     EVENTFLAGS( TTYInfo )    = EVENTFLAGS_DEFAULT;
     FLAGCHAR( TTYInfo )      = FLAGCHAR_DEFAULT;
 
@@ -277,7 +282,7 @@ BOOL InitTTYInfo()
 
     //
     // setup default font information
-    // 
+    //
     LFTTYFONT( TTYInfo ).lfHeight =         12 ;
     LFTTYFONT( TTYInfo ).lfWidth =          0 ;
     LFTTYFONT( TTYInfo ).lfEscapement =     0 ;
@@ -331,25 +336,25 @@ void StartThreads(void)
     DWORD dwReadStatId;
     DWORD dwWriterId;
 
-    READSTATTHREAD(TTYInfo) = 
-            CreateThread( NULL, 
+    READSTATTHREAD(TTYInfo) =
+            CreateThread( NULL,
                           0,
                           (LPTHREAD_START_ROUTINE) ReaderAndStatusProc,
-                          (LPVOID) ghWndTTY, 
-                          0, 
+                          (LPVOID) ghWndTTY,
+                          0,
                           &dwReadStatId);
 
     if (READSTATTHREAD(TTYInfo) == NULL)
         ErrorInComm("CreateThread(Reader/Status)");
 
-    WRITERTHREAD(TTYInfo) = 
-            CreateThread( NULL, 
-                          0, 
-                          (LPTHREAD_START_ROUTINE) WriterProc, 
-                          (LPVOID) NULL, 
-                          0, 
+    WRITERTHREAD(TTYInfo) =
+            CreateThread( NULL,
+                          0,
+                          (LPTHREAD_START_ROUTINE) WriterProc,
+                          (LPVOID) NULL,
+                          0,
                           &dwWriterId );
-                   
+
     if (WRITERTHREAD(TTYInfo) == NULL)
         ErrorInComm("CreateThread (Writer)");
 
@@ -362,7 +367,7 @@ FUNCTION: SetupCommPort( void )
 
 PURPOSE: Setup Communication Port with our settings
 
-RETURN: 
+RETURN:
     Handle of comm port is successful
     NULL is error occurs
 
@@ -380,15 +385,15 @@ HANDLE SetupCommPort()
     //
     // open communication port handle
     //
-    COMDEV( TTYInfo ) = CreateFile( gszPort,  
-                                      GENERIC_READ | GENERIC_WRITE, 
-                                      0, 
-                                      0, 
+    COMDEV( TTYInfo ) = CreateFile( gszPort,
+                                      GENERIC_READ | GENERIC_WRITE,
+                                      0,
+                                      0,
                                       OPEN_EXISTING,
                                       FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED,
                                       0);
 
-    if (COMDEV(TTYInfo) == INVALID_HANDLE_VALUE) {   
+    if (COMDEV(TTYInfo) == INVALID_HANDLE_VALUE) {
         ErrorReporter("CreateFile");
         return NULL;
     }
@@ -447,7 +452,7 @@ HISTORY:   Date:      Author:     Comment:
 
 ----------------------------------------------------------------------------*/
 DWORD WaitForThreads(DWORD dwTimeout)
-{	
+{
     HANDLE hThreads[2];
     DWORD  dwRes;
 
@@ -463,12 +468,12 @@ DWORD WaitForThreads(DWORD dwTimeout)
     switch(dwRes)
     {
         case WAIT_OBJECT_0:
-        case WAIT_OBJECT_0 + 1: 
+        case WAIT_OBJECT_0 + 1:
             dwRes = WAIT_OBJECT_0;
             break;
 
         case WAIT_TIMEOUT:
-            
+
             if (WaitForSingleObject(READSTATTHREAD(TTYInfo), 0) == WAIT_TIMEOUT)
                 OutputDebugString("Reader/Status Thread didn't exit.\n\r");
 
@@ -550,7 +555,7 @@ BOOL BreakDownCommPort()
 
     return TRUE;
 }
- 
+
 /*-----------------------------------------------------------------------------
 
 FUNCTION: DisconnectOK
@@ -569,6 +574,6 @@ BOOL DisconnectOK()
 {
     if (!CONNECTED(TTYInfo))
         return TRUE;
-    
+
     return ((MessageBox(ghwndMain, "OK to Disconnect?", gszPort, MB_YESNO)) == IDYES);
 }

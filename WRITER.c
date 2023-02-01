@@ -1,10 +1,10 @@
 /*-----------------------------------------------------------------------------
-    This is a part of the Microsoft Source Code Samples. 
+    This is a part of the Microsoft Source Code Samples.
     Copyright (C) 1995 Microsoft Corporation.
-    All rights reserved. 
-    This source code is only intended as a supplement to 
+    All rights reserved.
+    This source code is only intended as a supplement to
     Microsoft Development Tools and/or WinHelp documentation.
-    See these sources for detailed information regarding the 
+    See these sources for detailed information regarding the
     Microsoft samples programs.
 
     MODULE: Writer.c
@@ -21,11 +21,11 @@
         WriterGeneric       - Actual writing funciton handles all i/o operations
         WriterAddNewNode    - Adds new write request packet to linked list
         WriterAddNewNodeTimeout - Adds new node, but can timeout.
-        WriterAddExistingNode - Modifies an existing packet and 
+        WriterAddExistingNode - Modifies an existing packet and
                                 links it to the linked list
         AddToLinkedList     - Adds the node to the list
         RemoveFromLinkedList - Removes a node
-        
+
 -----------------------------------------------------------------------------*/
 
 /*-----------------------------------------------------------------------------
@@ -34,7 +34,7 @@
     and processed by the functions in this module.
 
     The members of the WRITEREQUEST structure are described as follows:
-              
+
           DWORD     dwWriteType;       // dictates the type of request
           DWORD     dwSize;            // size of data to write
           char      ch;                // character to send
@@ -44,11 +44,11 @@
 
 
     dwWriteType can be one of the following values:
-                
+
         WRITE_CHAR       0x01    // indicates the request is for sending a single character
 
             WriteRequest.ch contains the character to send
-                             
+
 
         WRITE_FILE       0x02    // indicates the request is for a file transfer
 
@@ -64,7 +64,7 @@
 
 
         WRITE_FILEEND    0x04    // indicates the last block in a file transfer
-      
+
 
         WRITE_ABORT      0x05    // indicates the file transfer is aborted
 
@@ -140,14 +140,14 @@ DWORD WINAPI WriterProc(LPVOID lpV)
     // initialize write request linked list
     //
     dwSize = sizeof(WRITEREQUEST);
-    gpWriterHead = HeapAlloc(ghWriterHeap, HEAP_ZERO_MEMORY, dwSize);
-    gpWriterTail = HeapAlloc(ghWriterHeap, HEAP_ZERO_MEMORY, dwSize);
+    gpWriterHead = (WRITEREQUEST*)HeapAlloc(ghWriterHeap, HEAP_ZERO_MEMORY, dwSize);
+    gpWriterTail = (WRITEREQUEST*)HeapAlloc(ghWriterHeap, HEAP_ZERO_MEMORY, dwSize);
     gpWriterHead->pNext = gpWriterTail;
     gpWriterTail->pPrev = gpWriterHead;
 
     hArray[0] = ghWriterEvent;
     hArray[1] = ghThreadExitEvent;
-   
+
     while ( !fDone ) {
         dwRes = WaitForMultipleObjects(2, hArray, FALSE, WRITE_CHECK_TIMEOUT);
         switch(dwRes)
@@ -201,9 +201,9 @@ void HandleWriteRequests()
 {
     PWRITEREQUEST pWrite;
     BOOL fRes;
-    
+
     pWrite = gpWriterHead->pNext;
-    
+
     while(pWrite != gpWriterTail) {
         switch(pWrite->dwWriteType)
         {
@@ -228,7 +228,7 @@ void HandleWriteRequests()
 
             case WRITE_BLOCK:         WriterBlock(pWrite);              break;
 
-            default:                  ErrorReporter("Bad write request"); 
+            default:                  ErrorReporter("Bad write request");
                                       break;
         }
 
@@ -276,7 +276,7 @@ void WriterAbort(PWRITEREQUEST pAbortNode)
 {
     PWRITEREQUEST pCurrent;
     PWRITEREQUEST pNextNode;
-    BOOL fRes;
+    BOOL fRes = 0;
     int i = 0;
     char szMessage[30];
 
@@ -359,7 +359,7 @@ HISTORY:   Date:      Author:     Comment:
 
 -----------------------------------------------------------------------------*/
 void WriterBlock(PWRITEREQUEST pWrite)
-{   
+{
 
     WriterGeneric(pWrite->lpBuf, pWrite->dwSize);
     return;
@@ -424,10 +424,12 @@ HISTORY:   Date:      Author:     Comment:
 -----------------------------------------------------------------------------*/
 void WriterGeneric(char * lpBuf, DWORD dwToWrite)
 {
-    OVERLAPPED osWrite = {0};
+    OVERLAPPED osWrite;
     HANDLE hArray[2];
     DWORD dwWritten;
     DWORD dwRes;
+
+    memset(&osWrite, 0, sizeof(OVERLAPPED));
 
     //
     // If no writing is allowed, then just return
@@ -444,12 +446,12 @@ void WriterGeneric(char * lpBuf, DWORD dwToWrite)
 
     hArray[0] = osWrite.hEvent;
     hArray[1] = ghThreadExitEvent;
-    
+
     //
     // issue write
     //
     if (!WriteFile(COMDEV(TTYInfo), lpBuf, dwToWrite, &dwWritten, &osWrite)) {
-        if (GetLastError() == ERROR_IO_PENDING) { 
+        if (GetLastError() == ERROR_IO_PENDING) {
             //
             // write is delayed
             //
@@ -467,7 +469,7 @@ void WriterGeneric(char * lpBuf, DWORD dwToWrite)
                                 else
                                     ErrorInComm("GetOverlappedResult(in Writer)");
                             }
-                            
+
                             if (dwWritten != dwToWrite) {
                                 if ((GetLastError() == ERROR_SUCCESS) && SHOWTIMEOUTS(TTYInfo))
                                     UpdateStatus("Write timed out. (overlapped)\r\n");
@@ -482,7 +484,7 @@ void WriterGeneric(char * lpBuf, DWORD dwToWrite)
                 case WAIT_OBJECT_0 + 1:
                             break;
 
-                //                
+                //
                 // wait timed out
                 //
                 case WAIT_TIMEOUT:
@@ -494,7 +496,7 @@ void WriterGeneric(char * lpBuf, DWORD dwToWrite)
                             break;
             }
         }
-        else    
+        else
             //
             // writefile failed, but it isn't delayed
             //
@@ -509,7 +511,7 @@ void WriterGeneric(char * lpBuf, DWORD dwToWrite)
     }
 
     CloseHandle(osWrite.hEvent);
-    
+
     return;
 }
 
@@ -538,11 +540,11 @@ HISTORY:   Date:      Author:     Comment:
            10/27/95   AllenD      Wrote it
 
 -----------------------------------------------------------------------------*/
-BOOL WriterAddNewNode(  DWORD dwRequestType, 
-                        DWORD dwSize, 
-                        char ch, 
-                        char * lpBuf, 
-                        HANDLE hHeap, 
+BOOL WriterAddNewNode(  DWORD dwRequestType,
+                        DWORD dwSize,
+                        char ch,
+                        char * lpBuf,
+                        HANDLE hHeap,
                         HWND hProgress)
 {
     PWRITEREQUEST pWrite;
@@ -550,7 +552,7 @@ BOOL WriterAddNewNode(  DWORD dwRequestType,
     //
     // allocate new packet
     //
-    pWrite = HeapAlloc(ghWriterHeap, 0, sizeof(WRITEREQUEST));
+    pWrite = (PWRITEREQUEST)HeapAlloc(ghWriterHeap, 0, sizeof(WRITEREQUEST));
     if (pWrite == NULL) {
         ErrorReporter("HeapAlloc (writer packet)");
         return FALSE;
@@ -567,13 +569,13 @@ BOOL WriterAddNewNode(  DWORD dwRequestType,
     pWrite->hWndProgress = hProgress;
 
     AddToLinkedList(pWrite);
-    
+
     return TRUE;
 }
 
 /*-----------------------------------------------------------------------------
 
-FUNCTION: WriterAddNewNodeTimeout(DWORD, DWORD, char, char *, 
+FUNCTION: WriterAddNewNodeTimeout(DWORD, DWORD, char, char *,
                                     HANDLE, HWND, DWORD)
 
 PURPOSE: Adds a new write request packet, timesout if can't allocate packet.
@@ -599,11 +601,11 @@ HISTORY:   Date:      Author:     Comment:
            10/27/95   AllenD      Wrote it
 
 -----------------------------------------------------------------------------*/
-BOOL WriterAddNewNodeTimeout(   DWORD dwRequestType, 
-                                DWORD dwSize, 
-                                char ch, 
-                                char * lpBuf, 
-                                HANDLE hHeap, 
+BOOL WriterAddNewNodeTimeout(   DWORD dwRequestType,
+                                DWORD dwSize,
+                                char ch,
+                                char * lpBuf,
+                                HANDLE hHeap,
                                 HWND hProgress,
                                 DWORD dwTimeout  )
 {
@@ -612,13 +614,13 @@ BOOL WriterAddNewNodeTimeout(   DWORD dwRequestType,
     //
     // attempt first allocation
     //
-    pWrite = HeapAlloc(ghWriterHeap, 0, sizeof(WRITEREQUEST));
+    pWrite = (PWRITEREQUEST)HeapAlloc(ghWriterHeap, 0, sizeof(WRITEREQUEST));
     if (pWrite == NULL) {
         Sleep(dwTimeout);
         //
         // attempt second allocation
         //
-        pWrite = HeapAlloc(ghWriterHeap, 0, sizeof(WRITEREQUEST));
+        pWrite = (PWRITEREQUEST)HeapAlloc(ghWriterHeap, 0, sizeof(WRITEREQUEST));
         if (pWrite == NULL) {
             ErrorReporter("HeapAlloc (writer packet)");
             return FALSE;
@@ -636,16 +638,16 @@ BOOL WriterAddNewNodeTimeout(   DWORD dwRequestType,
     pWrite->hWndProgress = hProgress;
 
     AddToLinkedList(pWrite);
-    
+
     return TRUE;
 }
 
 /*-----------------------------------------------------------------------------
 
-FUNCTION: WriterAddFirstNodeTimeout(DWORD, DWORD, char, char *, 
+FUNCTION: WriterAddFirstNodeTimeout(DWORD, DWORD, char, char *,
                                     HANDLE, HWND, DWORD)
 
-PURPOSE: Adds a new write request packet and places it at the front of the 
+PURPOSE: Adds a new write request packet and places it at the front of the
          list, timesout if can't allocate packet.
 
 PARAMETERS:
@@ -668,11 +670,11 @@ HISTORY:   Date:      Author:     Comment:
             1/26/96   AllenD      Wrote it
 
 -----------------------------------------------------------------------------*/
-BOOL WriterAddFirstNodeTimeout(   DWORD dwRequestType, 
-                                DWORD dwSize, 
-                                char ch, 
-                                char * lpBuf, 
-                                HANDLE hHeap, 
+BOOL WriterAddFirstNodeTimeout(   DWORD dwRequestType,
+                                DWORD dwSize,
+                                char ch,
+                                char * lpBuf,
+                                HANDLE hHeap,
                                 HWND hProgress,
                                 DWORD dwTimeout  )
 {
@@ -681,13 +683,13 @@ BOOL WriterAddFirstNodeTimeout(   DWORD dwRequestType,
     //
     // attempt first allocation
     //
-    pWrite = HeapAlloc(ghWriterHeap, 0, sizeof(WRITEREQUEST));
+    pWrite = (PWRITEREQUEST)HeapAlloc(ghWriterHeap, 0, sizeof(WRITEREQUEST));
     if (pWrite == NULL) {
         Sleep(dwTimeout);
         //
         // attempt second allocation
         //
-        pWrite = HeapAlloc(ghWriterHeap, 0, sizeof(WRITEREQUEST));
+        pWrite = (PWRITEREQUEST)HeapAlloc(ghWriterHeap, 0, sizeof(WRITEREQUEST));
         if (pWrite == NULL) {
             ErrorReporter("HeapAlloc (writer packet)");
             return FALSE;
@@ -705,7 +707,7 @@ BOOL WriterAddFirstNodeTimeout(   DWORD dwRequestType,
     pWrite->hWndProgress = hProgress;
 
     AddToFrontOfLinkedList(pWrite);
-    
+
     return TRUE;
 }
 
@@ -732,12 +734,12 @@ HISTORY:   Date:      Author:     Comment:
            10/27/95   AllenD      Wrote it
 
 -----------------------------------------------------------------------------*/
-BOOL WriterAddExistingNode( PWRITEREQUEST pNode, 
-                            DWORD dwRequestType, 
-                            DWORD dwSize, 
-                            char ch, 
-                            char * lpBuf, 
-                            HANDLE hHeap, 
+BOOL WriterAddExistingNode( PWRITEREQUEST pNode,
+                            DWORD dwRequestType,
+                            DWORD dwSize,
+                            char ch,
+                            char * lpBuf,
+                            HANDLE hHeap,
                             HWND hProgress)
 {
     //
@@ -751,7 +753,7 @@ BOOL WriterAddExistingNode( PWRITEREQUEST pNode,
     pNode->hWndProgress = hProgress;
 
     AddToLinkedList(pNode);
- 
+
     return TRUE;
 }
 
@@ -788,11 +790,11 @@ void AddToLinkedList(PWRITEREQUEST pNode)
 
     //
     // notify writer thread that a node has been added
-    // 
+    //
     if (!SetEvent(ghWriterEvent))
         ErrorReporter("SetEvent( writer packet )");
-    
-    return;    
+
+    return;
 }
 
 /*-----------------------------------------------------------------------------
@@ -817,10 +819,10 @@ void AddToFrontOfLinkedList(PWRITEREQUEST pNode)
     EnterCriticalSection(&gcsWriterHeap);
 
     pNextNode = gpWriterHead->pNext;
-    
+
     pNextNode->pPrev = pNode;
     gpWriterHead->pNext = pNode;
-    
+
     pNode->pNext = pNextNode;
     pNode->pPrev = gpWriterHead;
 
@@ -828,18 +830,18 @@ void AddToFrontOfLinkedList(PWRITEREQUEST pNode)
 
     //
     // notify writer thread that a node has been added
-    // 
+    //
     if (!SetEvent(ghWriterEvent))
         ErrorReporter("SetEvent( writer packet )");
-    
-    return;    
+
+    return;
 }
 
 /*-----------------------------------------------------------------------------
 
 FUNCTION: RemoveFromLinkedList(PWRITEREQUEST)
 
-PURPOSE: Deallocates the head node and makes the passed in node 
+PURPOSE: Deallocates the head node and makes the passed in node
          the new head node.
          Sets the head node point to node just after the passed in node.
          Returns the node pointed to by the head node.
@@ -862,12 +864,12 @@ PWRITEREQUEST RemoveFromLinkedList(PWRITEREQUEST pNode)
     BOOL bRes;
 
     EnterCriticalSection(&gcsWriterHeap);
-    
+
     pNextNode = pNode->pNext;
-    pPrevNode = pNode->pPrev;    
-    
+    pPrevNode = pNode->pPrev;
+
     bRes = HeapFree(ghWriterHeap, 0, pNode);
-    
+
     pPrevNode->pNext = pNextNode;
     pNextNode->pPrev = pPrevNode;
 

@@ -16,6 +16,10 @@
 #define IDD_TIMEOUTSDLG                 110
 #define IDI_APPICON4                    111
 #define IDD_GETADWORD                   111
+// Mario Ivanèiæ, 2018
+#define IDD_SETMACROS                   112
+#define IDD_HELP                        113
+// End MArio
 #define IDC_PORTCOMBO                   1000
 #define IDC_BAUDCOMBO                   1001
 #define IDC_PARITYCOMBO                 1002
@@ -90,6 +94,56 @@
 #define IDC_DWORDSTATIC                 1081
 #define IDC_DWORDEDIT                   1082
 #define IDC_DISPLAYTIMEOUTS             1083
+// Mario Ivanèiæ, 2018
+#define IDC_SETMACROSBTN                1084
+#define IDC_MACRO1BTN                   1085
+#define IDC_MACRO2BTN                   1086
+#define IDC_MACRO3BTN                   1087
+#define IDC_MACRO4BTN                   1088
+#define IDC_MACRO5BTN                   1089
+#define IDC_MACRO6BTN                   1090
+#define IDC_MACRO7BTN                   1091
+#define IDC_MACRO8BTN                   1092
+#define IDC_MACRO9BTN                   1093
+#define IDC_MACRO10BTN                  1094
+#define IDC_MACRO1                      1095
+#define IDC_MACRO2                      1096
+#define IDC_MACRO3                      1097
+#define IDC_MACRO4                      1098
+#define IDC_MACRO5                      1099
+#define IDC_MACRO6                      1100
+#define IDC_MACRO7                      1101
+#define IDC_MACRO8                      1102
+#define IDC_MACRO9                      1103
+#define IDC_MACRO10                     1104
+#define IDC_MACRO1ASCIIRB               1105
+#define IDC_MACRO1HEXRB                 1106
+#define IDC_MACRO2ASCIIRB               1107
+#define IDC_MACRO2HEXRB                 1108
+#define IDC_MACRO3ASCIIRB               1109
+#define IDC_MACRO3HEXRB                 1110
+#define IDC_MACRO4ASCIIRB               1111
+#define IDC_MACRO4HEXRB                 1112
+#define IDC_MACRO5ASCIIRB               1113
+#define IDC_MACRO5HEXRB                 1114
+#define IDC_MACRO6ASCIIRB               1115
+#define IDC_MACRO6HEXRB                 1116
+#define IDC_MACRO7ASCIIRB               1117
+#define IDC_MACRO7HEXRB                 1118
+#define IDC_MACRO8ASCIIRB               1119
+#define IDC_MACRO8HEXRB                 1120
+#define IDC_MACRO9ASCIIRB               1121
+#define IDC_MACRO9HEXRB                 1122
+#define IDC_MACRO10ASCIIRB              1123
+#define IDC_MACRO10HEXRB                1124
+#define IDC_OPENBTN                     1125
+#define IDC_CLOSEBTN                    1126
+#define IDC_CLEARBTN                    1127
+#define IDC_NONPRINTHEXCHK              1128
+#define IDC_ALLASHEXCHK                 1129
+#define IDC_HELPTEXT                    1130
+// End Mario
+
 #define ID_FILE_EXIT                    40001
 #define ID_HELP_ABOUTMTTTY              40002
 #define ID_FILE_CONNECT                 40004
@@ -100,10 +154,11 @@
 #define ID_TRANSFER_SENDREPEATEDLY      40012
 #define ID_TRANSFER_ABORTSENDING        40016
 #define ID_TRANSFER_ABORTREPEATEDSENDING 40018
+#define ID_HELP_HELP                    40019
 #define IDC_STATIC                      65535
 
 // Next default values for new objects
-// 
+//
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        113
